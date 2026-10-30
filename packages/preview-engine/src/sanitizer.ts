@@ -6,22 +6,36 @@ export interface SandboxOptions {
 
 /**
  * Sanitizes untrusted SVG content by removing executable scripts, event handlers,
- * external object embeds, and javascript: pseudo-protocols.
+ * dangerous tags (including foreignObject, embed, iframe, object), xml-stylesheet processing instructions,
+ * and pseudo-protocols like javascript:/vbscript:.
  */
 export function sanitizeSvg(rawSvg: string): string {
+  if (!rawSvg) return "";
   let clean = rawSvg;
 
-  // 1. Remove <script> tags and contents
-  clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  // 1. Remove XML stylesheets and processing instructions: <?xml-stylesheet ...?>
+  clean = clean.replace(/<\?xml-stylesheet[\s\S]*?\?>/gi, "");
 
-  // 2. Remove dangerous foreign/executable tags
-  clean = clean.replace(/<\/?(?:foreignObject|embed|object|iframe|applet|meta|link)\b[^>]*>/gi, "");
+  // 2. Remove script tags (both standard and namespaced, e.g. <svg:script>)
+  clean = clean.replace(
+    /<([a-zA-Z0-9_-]+:)?script\b[^<]*(?:(?!<\/([a-zA-Z0-9_-]+:)?script>)<[^<]*)*<\/([a-zA-Z0-9_-]+:)?script>/gi,
+    ""
+  );
 
-  // 3. Remove inline event handlers (on*, e.g., onload, onclick, onerror)
-  clean = clean.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  // 3. Remove dangerous foreign/executable tags
+  clean = clean.replace(
+    /<\/?([a-zA-Z0-9_-]+:)?(?:foreignObject|embed|object|iframe|applet|meta|link|base|form|input|button|textarea|audio|video)\b[^>]*>/gi,
+    ""
+  );
 
-  // 4. Remove javascript: links in href or xlink:href
-  clean = clean.replace(/\s+(?:href|xlink:href)\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, "");
+  // 4. Remove inline event handlers (on*, e.g., onload, onclick, onerror, onmouseover)
+  clean = clean.replace(/\s+on[a-zA-Z-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+
+  // 5. Remove javascript: / vbscript: / data:text/html links in href, xlink:href, or src
+  clean = clean.replace(
+    /\s+(?:[a-zA-Z0-9_-]+:)?(?:href|src)\s*=\s*["']?\s*(?:javascript|vbscript|data:text\/html):[^"'>\s]*/gi,
+    ""
+  );
 
   return clean;
 }

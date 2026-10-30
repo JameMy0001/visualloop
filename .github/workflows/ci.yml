@@ -42,11 +42,14 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Build Workspace Packages
+        run: pnpm build
+
       - name: Run Workspace Tests
         run: pnpm test
 
       - name: Typecheck Workspace
-        run: pnpm -r --stream exec tsc --noEmit
+        run: pnpm typecheck
 
       - name: Verify Cargo Tauri Build
         run: cd apps/desktop/src-tauri && cargo check

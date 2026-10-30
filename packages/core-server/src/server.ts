@@ -204,7 +204,7 @@ export class CoreServer {
 
   public async start(): Promise<string> {
     await this.fastify.listen({ port: this.port, host: this.host });
-    this.ws.initialize(this.fastify.server);
+    this.ws.initialize(this.fastify.server, this.secretToken);
     return `http://${this.host}:${this.port}`;
   }
 

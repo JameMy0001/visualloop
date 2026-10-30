@@ -191,8 +191,12 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       }
     ];
 
-    // Minimal SVG capture baseline
-    const baseSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(viewport.width)} ${Math.round(viewport.height)}"><rect width="100%" height="100%" fill="#070B14"/></svg>`;
+    // Extract actual rendered SVG from the canvas DOM if available, otherwise baseline container SVG
+    const svgEl = canvasRef.current?.querySelector("svg");
+    const baseSvg = svgEl
+      ? svgEl.outerHTML
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(viewport.width)} ${Math.round(viewport.height)}"><rect width="100%" height="100%" fill="#070B14"/></svg>`;
+
     const dual = generateDualCapture(baseSvg, finalAnnotations, {
       width: Math.round(viewport.width),
       height: Math.round(viewport.height),

@@ -29,20 +29,41 @@ export const App: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, setMode]);
 
-  const handleSubmitFeedback = (submission: FeedbackSubmission) => {
-    console.info("[VisualLoop] Feedback submitted:", submission);
+  const handleSubmitFeedback = async (submission: FeedbackSubmission) => {
+    console.info("[VisualLoop] Submitting feedback:", submission);
     setState("submitting");
 
-    // Persist latest feedback to local cache
+    // 1. Local offline persistence
     try {
       localStorage.setItem("visualloop_last_feedback", JSON.stringify(submission));
     } catch (e) {
       console.warn("Failed to store feedback locally", e);
     }
 
-    // Transition state machine: submitting -> mini_waiting
+    // 2. Transmit to Core Server API
+    try {
+      const response = await fetch("http://127.0.0.1:4178/v1/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(submission),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.info("[VisualLoop] Feedback successfully delivered to Core Server:", data);
+      } else {
+        console.warn("[VisualLoop] Server returned non-200 feedback status:", response.status);
+      }
+    } catch (err) {
+      console.warn("[VisualLoop] Core Server unreachable, cached locally:", err);
+    }
+
+    // 3. Transition state machine to mini_waiting and return to mini overlay
     setTimeout(() => {
       setState("mini_waiting");
+      setMode("mini");
     }, 600);
   };
 
