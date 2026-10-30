@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { SessionHandle, ServerEvent } from "@visualloop/protocol";
 import { coreClient, ActiveArtifactInfo } from "../services/coreClient";
 import { eventClient, ConnectionStatus } from "../services/eventClient";
+import { tauriBridge } from "../services/tauriBridge";
 
 export type FeedbackUIStatus =
   | "idle"
@@ -44,9 +45,22 @@ export function useVisualLoopStore() {
     }
   }, []);
 
-  // Connect WebSocket and subscribe to real-time events
+  // Connect WebSocket and subscribe to real-time events with auto-synchronized auth token
   useEffect(() => {
-    eventClient.connect();
+    let isMounted = true;
+
+    async function initAuthAndConnect() {
+      const token = await tauriBridge.getAuthToken();
+      if (token) {
+        coreClient.setToken(token);
+        eventClient.setToken(token);
+      }
+      if (isMounted) {
+        eventClient.connect();
+      }
+    }
+
+    initAuthAndConnect();
 
     const unsubStatus = eventClient.onStatusChange((status) => {
       setConnection(status);

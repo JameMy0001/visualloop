@@ -5,25 +5,34 @@ import path from "node:path";
 
 /**
  * Validates Origin header using strict URL parsing and exact hostname verification.
- * Prevents bypasses like 'http://attacker-localhost.com' or 'http://127.0.0.1.attacker.com'.
+ * Prevents bypasses like 'http://attacker-localhost.com', 'http://tauri.localhost.attacker.com',
+ * or 'tauri://attacker.com'. Prefix matching is strictly prohibited.
  */
 export function isValidOrigin(origin?: string): boolean {
   if (!origin) return true; // Direct non-browser CLI or curl requests have no origin header
   if (origin === "null") return true; // Sandboxed iframes (without allow-same-origin) send origin "null"
 
-  // Standard Tauri 2 origins
-  if (origin === "tauri://localhost" || origin.startsWith("tauri://")) return true;
-  if (origin === "http://tauri.localhost" || origin.startsWith("http://tauri.localhost")) return true;
-
   try {
     const parsed = new URL(origin);
-    // Only allow http or https protocols
+
+    // Exact Tauri 2 scheme & host (macOS / Linux: tauri://localhost, Windows: http://tauri.localhost)
+    if (parsed.protocol === "tauri:" && parsed.hostname.toLowerCase() === "localhost") {
+      return true;
+    }
+    if (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      parsed.hostname.toLowerCase() === "tauri.localhost"
+    ) {
+      return true;
+    }
+
+    // Only allow http or https protocols for local dev / browser UI
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return false;
     }
 
     const hostname = parsed.hostname.toLowerCase();
-    // Exact hostname validation only - no substring matching
+    // Exact hostname validation only - no substring or prefix matching
     return (
       hostname === "localhost" ||
       hostname === "127.0.0.1" ||

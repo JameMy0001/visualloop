@@ -1,5 +1,6 @@
 import { Viewport, Annotation, denormalizeBounds } from "@visualloop/protocol";
 import { encodeRgbRaster } from "./pngEncoder.js";
+import { isFontPixelActive } from "./bitmapFont.js";
 
 export interface ScreenshotRequest {
   htmlOrSvgContent: string;
@@ -17,14 +18,100 @@ export interface ScreenshotResult {
 }
 
 interface ShapeItem {
-  type: "rect" | "circle" | "ellipse";
+  type: "rect" | "circle" | "ellipse" | "line" | "path" | "text";
   x: number;
   y: number;
   width: number;
   height: number;
+  x2?: number;
+  y2?: number;
+  segments?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  text?: string;
+  fontSize?: number;
+  scale?: number;
   fill?: [number, number, number];
   stroke?: [number, number, number];
   strokeWidth?: number;
+}
+
+function distToSegmentSq(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  if (l2 === 0) return (px - x1) * (px - x1) + (py - y1) * (py - y1);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * (x2 - x1);
+  const projY = y1 + t * (y2 - y1);
+  return (px - projX) * (px - projX) + (py - projY) * (py - projY);
+}
+
+function parsePathSegments(d: string): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+  const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  const commands = d.match(/([a-df-z])([^a-df-z]*)/gi) || [];
+  let curX = 0;
+  let curY = 0;
+  let startX = 0;
+  let startY = 0;
+
+  for (const cmd of commands) {
+    const type = cmd[0];
+    const nums = (cmd.slice(1).trim().match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    if (type === "M") {
+      if (nums.length >= 2) {
+        curX = nums[0];
+        curY = nums[1];
+        startX = curX;
+        startY = curY;
+      }
+    } else if (type === "m") {
+      if (nums.length >= 2) {
+        curX += nums[0];
+        curY += nums[1];
+        startX = curX;
+        startY = curY;
+      }
+    } else if (type === "L") {
+      for (let i = 0; i < nums.length; i += 2) {
+        const nextX = nums[i];
+        const nextY = nums[i + 1] ?? curY;
+        segments.push({ x1: curX, y1: curY, x2: nextX, y2: nextY });
+        curX = nextX;
+        curY = nextY;
+      }
+    } else if (type === "l") {
+      for (let i = 0; i < nums.length; i += 2) {
+        const nextX = curX + nums[i];
+        const nextY = curY + (nums[i + 1] ?? 0);
+        segments.push({ x1: curX, y1: curY, x2: nextX, y2: nextY });
+        curX = nextX;
+        curY = nextY;
+      }
+    } else if (type === "H") {
+      for (const nx of nums) {
+        segments.push({ x1: curX, y1: curY, x2: nx, y2: curY });
+        curX = nx;
+      }
+    } else if (type === "h") {
+      for (const dx of nums) {
+        segments.push({ x1: curX, y1: curY, x2: curX + dx, y2: curY });
+        curX += dx;
+      }
+    } else if (type === "V") {
+      for (const ny of nums) {
+        segments.push({ x1: curX, y1: curY, x2: curX, y2: ny });
+        curY = ny;
+      }
+    } else if (type === "v") {
+      for (const dy of nums) {
+        segments.push({ x1: curX, y1: curY, x2: curX, y2: curY + dy });
+        curY += dy;
+      }
+    } else if (type === "Z" || type === "z") {
+      segments.push({ x1: curX, y1: curY, x2: startX, y2: startY });
+      curX = startX;
+      curY = startY;
+    }
+  }
+  return segments;
 }
 
 function parseColor(str?: string): [number, number, number] | undefined {
@@ -119,7 +206,192 @@ function extractShapesFromSvg(svg: string, vpWidth: number, vpHeight: number): S
     }
   }
 
+  // Match ellipse elements
+  const ellipseRegex = /<ellipse\b([^>]*)\/?>/gi;
+  while ((match = ellipseRegex.exec(svg)) !== null) {
+    const attrs = match[1];
+    const cxMatch = attrs.match(/cx=["']?(-?\d+(?:\.\d+)?)/i);
+    const cyMatch = attrs.match(/cy=["']?(-?\d+(?:\.\d+)?)/i);
+    const rxMatch = attrs.match(/rx=["']?(\d+(?:\.\d+)?)/i);
+    const ryMatch = attrs.match(/ry=["']?(\d+(?:\.\d+)?)/i);
+    const fillMatch = attrs.match(/fill=["']?([^"'>\s]+)/i);
+    const strokeMatch = attrs.match(/stroke=["']?([^"'>\s]+)/i);
+
+    if (cxMatch && cyMatch && rxMatch && ryMatch) {
+      const cx = parseFloat(cxMatch[1]);
+      const cy = parseFloat(cyMatch[1]);
+      const rx = parseFloat(rxMatch[1]);
+      const ry = parseFloat(ryMatch[1]);
+      shapes.push({
+        type: "ellipse",
+        x: cx - rx,
+        y: cy - ry,
+        width: rx * 2,
+        height: ry * 2,
+        fill: parseColor(fillMatch ? fillMatch[1] : "#E5E5E5"),
+        stroke: parseColor(strokeMatch ? strokeMatch[1] : undefined),
+      });
+    }
+  }
+
+  // Match line elements
+  const lineRegex = /<line\b([^>]*)\/?>/gi;
+  while ((match = lineRegex.exec(svg)) !== null) {
+    const attrs = match[1];
+    const x1Match = attrs.match(/x1=["']?(-?\d+(?:\.\d+)?)/i);
+    const y1Match = attrs.match(/y1=["']?(-?\d+(?:\.\d+)?)/i);
+    const x2Match = attrs.match(/x2=["']?(-?\d+(?:\.\d+)?)/i);
+    const y2Match = attrs.match(/y2=["']?(-?\d+(?:\.\d+)?)/i);
+    const strokeMatch = attrs.match(/stroke=["']?([^"'>\s]+)/i);
+    const strokeWidthMatch = attrs.match(/stroke-width=["']?(\d+(?:\.\d+)?)/i);
+
+    if (x1Match && y1Match && x2Match && y2Match) {
+      shapes.push({
+        type: "line",
+        x: parseFloat(x1Match[1]),
+        y: parseFloat(y1Match[1]),
+        x2: parseFloat(x2Match[1]),
+        y2: parseFloat(y2Match[1]),
+        width: Math.abs(parseFloat(x2Match[1]) - parseFloat(x1Match[1])),
+        height: Math.abs(parseFloat(y2Match[1]) - parseFloat(y1Match[1])),
+        stroke: parseColor(strokeMatch ? strokeMatch[1] : "#000000"),
+        strokeWidth: strokeWidthMatch ? parseFloat(strokeWidthMatch[1]) : 2,
+      });
+    }
+  }
+
+  // Match path elements
+  const pathRegex = /<path\b([^>]*)\/?>/gi;
+  while ((match = pathRegex.exec(svg)) !== null) {
+    const attrs = match[1];
+    const dMatch = attrs.match(/\bd=["']([^"']+)["']/i);
+    const strokeMatch = attrs.match(/stroke=["']?([^"'>\s]+)/i);
+    const strokeWidthMatch = attrs.match(/stroke-width=["']?(\d+(?:\.\d+)?)/i);
+
+    if (dMatch) {
+      const segments = parsePathSegments(dMatch[1]);
+      shapes.push({
+        type: "path",
+        x: 0,
+        y: 0,
+        width: vpWidth,
+        height: vpHeight,
+        segments,
+        stroke: parseColor(strokeMatch ? strokeMatch[1] : "#000000"),
+        strokeWidth: strokeWidthMatch ? parseFloat(strokeWidthMatch[1]) : 2,
+      });
+    }
+  }
+
+  // Match text elements
+  const textRegex = /<text\b([^>]*)>(.*?)<\/text>/gis;
+  while ((match = textRegex.exec(svg)) !== null) {
+    const attrs = match[1];
+    const rawContent = match[2].replace(/<[^>]+>/g, "").trim();
+    if (!rawContent) continue;
+
+    const xMatch = attrs.match(/\bx=["']?(-?\d+(?:\.\d+)?)/i);
+    const yMatch = attrs.match(/\by=["']?(-?\d+(?:\.\d+)?)/i);
+    const fontSizeMatch = attrs.match(/font-size=["']?(\d+(?:\.\d+)?)/i);
+    const fillMatch = attrs.match(/fill=["']?([^"'>\s]+)/i);
+    const anchorMatch = attrs.match(/text-anchor=["']?([^"'>\s]+)/i);
+
+    const fontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 14;
+    const scale = Math.max(1, Math.round(fontSize / 7));
+    const charWidth = 6 * scale;
+    let x = xMatch ? parseFloat(xMatch[1]) : 0;
+    const y = yMatch ? parseFloat(yMatch[1]) : 14;
+
+    const anchor = anchorMatch ? anchorMatch[1].toLowerCase() : "start";
+    if (anchor === "middle") {
+      x -= (rawContent.length * charWidth) / 2;
+    } else if (anchor === "end") {
+      x -= rawContent.length * charWidth;
+    }
+
+    shapes.push({
+      type: "text",
+      x,
+      y,
+      width: rawContent.length * charWidth,
+      height: 7 * scale,
+      text: rawContent,
+      fontSize,
+      scale,
+      fill: parseColor(fillMatch ? fillMatch[1] : "#000000"),
+    });
+  }
+
   return shapes;
+}
+
+function renderBasePixel(px: number, py: number, shapes: ShapeItem[]): [number, number, number] {
+  let r = 255;
+  let g = 255;
+  let b = 255;
+
+  for (const shape of shapes) {
+    if (shape.type === "rect") {
+      if (px >= shape.x && px < shape.x + shape.width && py >= shape.y && py < shape.y + shape.height) {
+        if (shape.fill) [r, g, b] = shape.fill;
+      }
+    } else if (shape.type === "circle") {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rad = shape.width / 2;
+      if ((px - cx) * (px - cx) + (py - cy) * (py - cy) <= rad * rad) {
+        if (shape.fill) [r, g, b] = shape.fill;
+      }
+    } else if (shape.type === "ellipse") {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rx = shape.width / 2;
+      const ry = shape.height / 2;
+      const nx = (px - cx) / Math.max(1, rx);
+      const ny = (py - cy) / Math.max(1, ry);
+      if (nx * nx + ny * ny <= 1) {
+        if (shape.fill) [r, g, b] = shape.fill;
+      }
+    } else if (shape.type === "line") {
+      const sw = shape.strokeWidth || 2;
+      if (distToSegmentSq(px, py, shape.x, shape.y, shape.x2!, shape.y2!) <= (sw * sw) / 4) {
+        if (shape.stroke) [r, g, b] = shape.stroke;
+      }
+    } else if (shape.type === "path") {
+      const sw = shape.strokeWidth || 2;
+      const radiusSq = (sw * sw) / 4;
+      if (shape.segments) {
+        for (const seg of shape.segments) {
+          if (distToSegmentSq(px, py, seg.x1, seg.y1, seg.x2, seg.y2) <= radiusSq) {
+            if (shape.stroke) [r, g, b] = shape.stroke;
+            break;
+          }
+        }
+      }
+    } else if (shape.type === "text" && shape.text) {
+      const scale = shape.scale || 1;
+      const charWidth = 6 * scale;
+      const charHeight = 7 * scale;
+      const text = shape.text;
+      const totalWidth = text.length * charWidth;
+      const startX = shape.x;
+      const startY = shape.y - charHeight;
+
+      if (px >= startX && px < startX + totalWidth && py >= startY && py < startY + charHeight) {
+        const charIdx = Math.floor((px - startX) / charWidth);
+        if (charIdx >= 0 && charIdx < text.length) {
+          const char = text[charIdx];
+          const col = Math.floor(((px - startX) % charWidth) / scale);
+          const row = Math.floor((py - startY) / scale);
+          if (isFontPixelActive(char, col, row)) {
+            if (shape.fill) [r, g, b] = shape.fill;
+          }
+        }
+      }
+    }
+  }
+
+  return [r, g, b];
 }
 
 /**
@@ -149,51 +421,12 @@ export class ScreenshotWorker {
 
     // Rasterize original image
     const origPngBuffer = encodeRgbRaster(width, height, (px, py) => {
-      // Default canvas background
-      let r = 255;
-      let g = 255;
-      let b = 255;
-
-      for (const shape of shapes) {
-        if (shape.type === "rect") {
-          if (px >= shape.x && px < shape.x + shape.width && py >= shape.y && py < shape.y + shape.height) {
-            if (shape.fill) {
-              [r, g, b] = shape.fill;
-            }
-          }
-        } else if (shape.type === "circle") {
-          const cx = shape.x + shape.width / 2;
-          const cy = shape.y + shape.height / 2;
-          const rad = shape.width / 2;
-          const distSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
-          if (distSq <= rad * rad) {
-            if (shape.fill) {
-              [r, g, b] = shape.fill;
-            }
-          }
-        }
-      }
-      return [r, g, b];
+      return renderBasePixel(px, py, shapes);
     });
 
     // Rasterize annotated image with visual markers
     const annotPngBuffer = encodeRgbRaster(width, height, (px, py) => {
-      // Base pixel
-      let [r, g, b] = [255, 255, 255];
-      for (const shape of shapes) {
-        if (shape.type === "rect") {
-          if (px >= shape.x && px < shape.x + shape.width && py >= shape.y && py < shape.y + shape.height) {
-            if (shape.fill) [r, g, b] = shape.fill;
-          }
-        } else if (shape.type === "circle") {
-          const cx = shape.x + shape.width / 2;
-          const cy = shape.y + shape.height / 2;
-          const rad = shape.width / 2;
-          if ((px - cx) * (px - cx) + (py - cy) * (py - cy) <= rad * rad) {
-            if (shape.fill) [r, g, b] = shape.fill;
-          }
-        }
-      }
+      const [r, g, b] = renderBasePixel(px, py, shapes);
 
       // Overlay annotations
       for (let i = 0; i < annotations.length; i++) {

@@ -65,14 +65,38 @@ describe("Gemini Runner Safety & Failure Recovery", () => {
     });
 
     expect(res.success).toBe(false);
-    expect(res.error).toContain("SVG is missing <svg>...</svg> root elements");
+    expect(res.error).toContain("SVG must have <svg> as root element");
     expect(fs.readFileSync(testSvgPath, "utf-8")).toBe(initialContent);
   });
 
-  it("blocks file modification attempts targeting paths outside the workspace", () => {
+  it("rejects unclosed or mismatched XML tags in SVG output", () => {
+    // Unclosed <g> tag before </svg>
+    const unclosedRes = applyRevisionSafely({
+      targetFilePath: testSvgPath,
+      revisedCode: `<svg width="100" height="100"><g><rect width="50"/></svg>`,
+      revision: 1,
+      workspaceRoot: tempDir,
+    });
+    expect(unclosedRes.success).toBe(false);
+    expect(unclosedRes.error).toContain("Mismatched tag </svg>, expected </g>");
+
+    // Mismatched closing tag </circle> for <g>
+    const mismatchedRes = applyRevisionSafely({
+      targetFilePath: testSvgPath,
+      revisedCode: `<svg width="100" height="100"><g><rect width="50"/></circle></svg>`,
+      revision: 1,
+      workspaceRoot: tempDir,
+    });
+    expect(mismatchedRes.success).toBe(false);
+    expect(mismatchedRes.error).toContain("Mismatched tag </circle>");
+    expect(fs.readFileSync(testSvgPath, "utf-8")).toBe(initialContent);
+  });
+
+  it("blocks file modification attempts targeting paths outside the workspace or symlink escapes", () => {
     const outsideFile = path.join(os.tmpdir(), "outside-target.svg");
     fs.writeFileSync(outsideFile, initialContent, "utf-8");
 
+    // 1. Direct path outside workspace
     try {
       const res = applyRevisionSafely({
         targetFilePath: outsideFile,
@@ -86,6 +110,28 @@ describe("Gemini Runner Safety & Failure Recovery", () => {
       expect(fs.readFileSync(outsideFile, "utf-8")).toBe(initialContent);
     } finally {
       if (fs.existsSync(outsideFile)) fs.unlinkSync(outsideFile);
+    }
+
+    // 2. Symlink inside workspace pointing outside
+    const outsideTarget = path.join(os.tmpdir(), "real-outside-target.svg");
+    fs.writeFileSync(outsideTarget, initialContent, "utf-8");
+    const symlinkInWorkspace = path.join(tempDir, "symlink-escape.svg");
+
+    try {
+      fs.symlinkSync(outsideTarget, symlinkInWorkspace);
+      const res = applyRevisionSafely({
+        targetFilePath: symlinkInWorkspace,
+        revisedCode: `<svg><circle/></svg>`,
+        revision: 1,
+        workspaceRoot: tempDir,
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.error).toContain("escapes workspace");
+      expect(fs.readFileSync(outsideTarget, "utf-8")).toBe(initialContent);
+    } finally {
+      if (fs.existsSync(symlinkInWorkspace)) fs.unlinkSync(symlinkInWorkspace);
+      if (fs.existsSync(outsideTarget)) fs.unlinkSync(outsideTarget);
     }
   });
 

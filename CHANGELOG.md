@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.1.0-preview.3] - 2026-10-31
+
+### Final Release Gate (P0 / P1 Resolution)
+- **Default Authentication & Multi-Process Token Sync**: Core Server requires token authentication by default. Tauri desktop app adds `get_auth_token` native command in Rust (`src-tauri/src/lib.rs`) and synchronizes `~/.visualloop/auth_token` directly to `coreClient` and `eventClient`. Unified launcher injects tokens into child environments.
+- **Exact Origin Validation**: Eliminated all prefix matching (`startsWith`). Origins are strictly parsed with URL parser to verify exact protocol, hostname, and port (`tauri://localhost`, `http://tauri.localhost`, `localhost`, `127.0.0.1`, `[::1]`). Negative tests added for spoofed variants.
+- **Full-Fidelity SVG Capture**: Added 5x7 ASCII bitmap font engine (`bitmapFont.ts`) to render `<text>` elements pixel-by-pixel, line segment solver for `<path>` and `<line>`, and `<ellipse>` rasterizer. Added pixel verification tests in `capturePixel.test.ts`.
+- **Safe File Validation & XML Parser**: Replaced prefix check with `path.relative` on `fs.realpathSync` to block symlinks and sibling folder collisions. Added `validateSvgXmlStructure` with XML tag stack parser to verify well-formedness and matching closing tags before writing to disk.
+- **Closed-Loop E2E in CI**: Enhanced `scripts/gemini-live-e2e.ts` to exercise the complete revision, XML validation, backup, and publication pipeline in both offline and live Gemini 2.5 API modes. Added to GitHub Actions CI.
+- **Multi-Platform Release Automation**: Added `.github/workflows/release.yml` with multi-platform matrix (macOS x86_64/arm64, Linux x86_64, Windows x86_64).
+
+---
+
 ## [0.1.0-preview.2] - 2026-10-31
 
 ### Security Hardening (Public Beta Preparation)

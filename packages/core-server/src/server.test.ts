@@ -6,12 +6,14 @@ import { CoreServer } from "./server.js";
 describe("Core Server End-to-End API & Event Pipeline", () => {
   let server: CoreServer;
   let baseUrl: string;
+  let authToken: string;
   const workspaceRoot = path.resolve(__dirname, "../../../examples");
 
   beforeAll(async () => {
-    // Start server on dynamic port for testing
+    // Start server on dynamic port for testing (auth enabled by default)
     server = new CoreServer({ port: 4179, host: "127.0.0.1" });
     baseUrl = await server.start();
+    authToken = server.getSecretToken()!;
   });
 
   afterAll(async () => {
@@ -19,6 +21,7 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
   });
 
   it("checks server health endpoint", async () => {
+    expect(authToken).toBeDefined();
     const res = await fetch(`${baseUrl}/v1/health`);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -26,10 +29,15 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
   });
 
   it("registers an agent session and publishes an artifact revision", async () => {
+    const authHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${authToken}`,
+    };
+
     // 1. Register Session
     const sessRes = await fetch(`${baseUrl}/v1/sessions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         adapterId: "gemini-cli",
         agentName: "Gemini CLI",
@@ -43,7 +51,7 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
     // 2. Publish Artifact Revision 1
     const artRes = await fetch(`${baseUrl}/v1/artifacts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         sessionId: session.sessionId,
         artifactId: "art_solar",
@@ -58,7 +66,9 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
     expect(artData.contentHash).toBeDefined();
 
     // 3. Query Revisions
-    const revsRes = await fetch(`${baseUrl}/v1/artifacts/art_solar/revisions`);
+    const revsRes = await fetch(`${baseUrl}/v1/artifacts/art_solar/revisions`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
     expect(revsRes.status).toBe(200);
     const revsData = await revsRes.json();
     expect(revsData.revisions).toHaveLength(1);
@@ -66,7 +76,7 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
     // 4. Submit Feedback
     const fbRes = await fetch(`${baseUrl}/v1/feedback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         protocolVersion: "1.0",
         feedbackId: "fb_pipeline_01",
@@ -92,20 +102,25 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
     expect(fbRes.status).toBe(201);
 
     // 5. Query Latest Feedback
-    const latestRes = await fetch(`${baseUrl}/v1/feedback/latest?sessionId=${session.sessionId}`);
+    const latestRes = await fetch(`${baseUrl}/v1/feedback/latest?sessionId=${session.sessionId}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
     expect(latestRes.status).toBe(200);
     const latest = await latestRes.json();
     expect(latest.annotations[0].instruction).toBe("Enlarge Jupiter");
 
     // 6. Acknowledge Feedback
-    const ackRes = await fetch(`${baseUrl}/v1/feedback/fb_pipeline_01/ack`, { method: "POST" });
+    const ackRes = await fetch(`${baseUrl}/v1/feedback/fb_pipeline_01/ack`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
     expect(ackRes.status).toBe(200);
     const ack = await ackRes.json();
     expect(ack.status).toBe("acknowledged");
   });
 
   it("broadcasts real-time events to connected WebSocket clients", async () => {
-    const ws = new WebSocket("ws://127.0.0.1:4179/v1/ws", {
+    const ws = new WebSocket(`ws://127.0.0.1:4179/v1/ws?token=${authToken}`, {
       headers: { Origin: "http://127.0.0.1:4179" },
     });
 

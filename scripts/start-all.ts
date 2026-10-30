@@ -1,7 +1,31 @@
 import { spawn, execSync, ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import http from "node:http";
+import crypto from "node:crypto";
+
+function resolveLocalToken(): string {
+  if (process.env.VISUALLOOP_SECRET_TOKEN && process.env.VISUALLOOP_SECRET_TOKEN.trim().length > 0) {
+    return process.env.VISUALLOOP_SECRET_TOKEN.trim();
+  }
+  const configDir = path.join(os.homedir(), ".visualloop");
+  const tokenFile = path.join(configDir, "auth_token");
+  try {
+    if (fs.existsSync(tokenFile)) {
+      const saved = fs.readFileSync(tokenFile, "utf-8").trim();
+      if (saved.length > 0) return saved;
+    }
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+    }
+    const generated = crypto.randomBytes(32).toString("hex");
+    fs.writeFileSync(tokenFile, generated, { encoding: "utf-8", mode: 0o600 });
+    return generated;
+  } catch {
+    return crypto.randomBytes(32).toString("hex");
+  }
+}
 
 function checkHealth(port = 4178): Promise<boolean> {
   return new Promise((resolve) => {
@@ -49,6 +73,13 @@ async function main() {
     });
   }
 
+  const localToken = resolveLocalToken();
+  const childEnv = {
+    ...process.env,
+    VISUALLOOP_SECRET_TOKEN: localToken,
+    VITE_VISUALLOOP_TOKEN: localToken,
+  };
+
   let serverProcess: ChildProcess | null = null;
   const isServerRunning = await checkHealth(4178);
 
@@ -59,6 +90,7 @@ async function main() {
     serverProcess = spawn("pnpm", ["--filter", "@visualloop/core-server", "start"], {
       stdio: "inherit",
       shell: true,
+      env: childEnv,
     });
 
     const ready = await waitForServer(4178);
@@ -75,6 +107,7 @@ async function main() {
   const desktopProcess = spawn("pnpm", ["--filter", "@visualloop/desktop", desktopTarget], {
     stdio: "inherit",
     shell: true,
+    env: childEnv,
   });
 
   const cleanup = () => {

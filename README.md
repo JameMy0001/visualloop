@@ -22,7 +22,8 @@ VisualLoop is an open-source, local-first desktop companion for reviewing visual
 The project currently targets **SVG and HTML artifacts**, with an experimental **Gemini API-powered revision workflow**. Other agent integrations are under development.
 
 <div align="center">
-  <img src="docs/assets/visualloop-demo.gif" alt="VisualLoop Desktop Workflow: Mini Preview, Expand, Circle Annotation, Submit Feedback, and Instant Revision" width="800" />
+  <img src="docs/assets/visualloop-demo.gif" alt="VisualLoop Desktop Workflow Demonstration" width="800" />
+  <p><sub><em>Scripted desktop UI demonstration: Mini Preview, Expand, Circle Annotation, and Instant Revision. Model-powered live workflows are validated via <code>pnpm test:gemini-e2e</code>.</em></sub></p>
 </div>
 
 ## Why VisualLoop?

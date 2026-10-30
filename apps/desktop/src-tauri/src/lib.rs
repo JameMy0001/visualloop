@@ -103,6 +103,26 @@ fn close_window(window: Window) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_auth_token() -> Option<String> {
+    if let Ok(token) = std::env::var("VISUALLOOP_SECRET_TOKEN") {
+        let trimmed = token.trim().to_string();
+        if !trimmed.is_empty() {
+            return Some(trimmed);
+        }
+    }
+
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).ok()?;
+    let path = std::path::Path::new(&home).join(".visualloop").join("auth_token");
+    if let Ok(content) = std::fs::read_to_string(path) {
+        let trimmed = content.trim().to_string();
+        if !trimmed.is_empty() {
+            return Some(trimmed);
+        }
+    }
+    None
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -115,7 +135,8 @@ pub fn run() {
             get_window_bounds,
             set_window_position,
             start_dragging,
-            close_window
+            close_window,
+            get_auth_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running VisualLoop application");

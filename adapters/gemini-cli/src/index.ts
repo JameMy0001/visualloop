@@ -42,6 +42,72 @@ export interface SafeRevisionResult {
 }
 
 /**
+ * Validates XML/SVG well-formedness using a structured tag stack parser.
+ * Enforces matching closing tags and verifies the root <svg> wrapper.
+ */
+export function validateSvgXmlStructure(code: string): { valid: boolean; error?: string } {
+  const trimmed = code.trim();
+  if (!trimmed) {
+    return { valid: false, error: "Validation failed: Empty code received" };
+  }
+
+  // Remove XML declarations and comments before checking tags
+  const cleanCode = trimmed
+    .replace(/<\?xml.*?\?>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
+
+  if (!cleanCode.startsWith("<svg") || !cleanCode.endsWith("</svg>")) {
+    return {
+      valid: false,
+      error: "Validation failed: SVG must have <svg> as root element and close with </svg>",
+    };
+  }
+
+  // Tag stack parser for well-formedness
+  const tagRegex = /<(\/?)([a-zA-Z0-9:-]+)([^>]*?)(\/?)>/g;
+  const stack: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRegex.exec(cleanCode)) !== null) {
+    const isClosing = match[1] === "/";
+    const tagName = match[2].toLowerCase();
+    const isSelfClosing = match[4] === "/" || match[3].trim().endsWith("/");
+
+    if (isSelfClosing) {
+      continue;
+    }
+
+    if (isClosing) {
+      if (stack.length === 0) {
+        return {
+          valid: false,
+          error: `Validation failed: Unexpected closing tag </${tagName}> without matching opening tag`,
+        };
+      }
+      const lastOpen = stack.pop();
+      if (lastOpen !== tagName) {
+        return {
+          valid: false,
+          error: `Validation failed: Mismatched tag </${tagName}>, expected </${lastOpen}>`,
+        };
+      }
+    } else {
+      stack.push(tagName);
+    }
+  }
+
+  if (stack.length > 0) {
+    return {
+      valid: false,
+      error: `Validation failed: Unclosed XML tags: <${stack.join(">, <")}>`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Validates and atomically replaces an artifact source file with versioned backups
  * and rollback guarantees on syntax or file system errors.
  */
@@ -53,22 +119,29 @@ export function applyRevisionSafely(options: {
 }): SafeRevisionResult {
   const { targetFilePath, revisedCode, revision, workspaceRoot } = options;
 
-  if (workspaceRoot) {
-    const resolvedTarget = path.resolve(targetFilePath);
-    const resolvedRoot = path.resolve(workspaceRoot);
-    if (!resolvedTarget.startsWith(resolvedRoot)) {
-      return {
-        success: false,
-        error: `Target path ${resolvedTarget} escapes workspace ${resolvedRoot}`,
-      };
-    }
-  }
-
   if (!fs.existsSync(targetFilePath)) {
     return {
       success: false,
       error: `Target file not found at ${targetFilePath}`,
     };
+  }
+
+  if (workspaceRoot) {
+    if (!fs.existsSync(workspaceRoot)) {
+      return {
+        success: false,
+        error: `Workspace root does not exist: ${workspaceRoot}`,
+      };
+    }
+    const realRoot = fs.realpathSync(path.resolve(workspaceRoot));
+    const realTarget = fs.realpathSync(path.resolve(targetFilePath));
+    const relative = path.relative(realRoot, realTarget);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      return {
+        success: false,
+        error: `Security violation: Target path ${realTarget} escapes workspace ${realRoot}`,
+      };
+    }
   }
 
   const ext = path.extname(targetFilePath).toLowerCase();
@@ -83,10 +156,11 @@ export function applyRevisionSafely(options: {
   }
 
   if (ext === ".svg") {
-    if (!trimmed.includes("<svg") || !trimmed.includes("</svg>")) {
+    const xmlCheck = validateSvgXmlStructure(trimmed);
+    if (!xmlCheck.valid) {
       return {
         success: false,
-        error: "Validation failed: SVG is missing <svg>...</svg> root elements",
+        error: xmlCheck.error,
       };
     }
   }

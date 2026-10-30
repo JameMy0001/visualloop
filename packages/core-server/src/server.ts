@@ -30,10 +30,12 @@ export class CoreServer {
     this.port = config.port ?? 4178;
     this.host = config.host ?? "127.0.0.1";
 
-    if (config.requireAuth || config.secretToken) {
+    // Authentication is strictly required by default unless explicitly disabled with requireAuth: false
+    const shouldRequireAuth = config.requireAuth !== false;
+    if (shouldRequireAuth || config.secretToken) {
       this.secretToken = config.secretToken || resolveOrCreateAuthToken();
     } else {
-      this.secretToken = config.secretToken;
+      this.secretToken = undefined;
     }
 
     this.fastify = Fastify({
@@ -270,5 +272,9 @@ export class CoreServer {
 
   public getAddress(): string {
     return `http://${this.host}:${this.port}`;
+  }
+
+  public getSecretToken(): string | undefined {
+    return this.secretToken;
   }
 }

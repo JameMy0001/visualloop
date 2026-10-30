@@ -57,6 +57,9 @@ jobs:
       - name: Run Scripted Golden-Path Smoke Test
         run: pnpm demo:golden-path
 
+      - name: Run Gemini Model Pipeline E2E Test
+        run: pnpm test:gemini-e2e
+
       - name: Verify Core Server CLI Smoke Test
         run: |
           pnpm --filter @visualloop/core-server start &

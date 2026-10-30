@@ -15,7 +15,8 @@ Usage:
 Options:
   --port, -p <number>    Port to listen on (default: 4178 or $PORT)
   --host, -H <string>    Host address to bind (default: 127.0.0.1 or $HOST)
-  --token, -t <string>   Secret authentication token (default: $VISUALLOOP_SECRET_TOKEN)
+  --token, -t <string>   Secret authentication token (default: $VISUALLOOP_SECRET_TOKEN or ~/.visualloop/auth_token)
+  --no-auth              Disable secret token requirement (insecure, not recommended)
   --help, -h             Show this help message
 `);
       process.exit(0);
@@ -26,6 +27,8 @@ Options:
       result.host = args[++i];
     } else if ((arg === "--token" || arg === "-t") && args[i + 1]) {
       result.token = args[++i];
+    } else if (arg === "--no-auth") {
+      result.noAuth = "true";
     }
   }
   return result;
@@ -39,15 +42,25 @@ const port = Number(
 const host =
   cliArgs.host || process.env.HOST || process.env.VISUALLOOP_HOST || "127.0.0.1";
 const secretToken = cliArgs.token || process.env.VISUALLOOP_SECRET_TOKEN;
+const disableAuth = cliArgs.noAuth === "true" || process.env.VISUALLOOP_NO_AUTH === "1";
 
-const server = new CoreServer({ port, host, secretToken });
+const server = new CoreServer({
+  port,
+  host,
+  secretToken,
+  requireAuth: !disableAuth,
+});
 
 async function run() {
   const address = await server.start();
   console.log(`[VisualLoop Core] Server active at ${address}`);
   console.log(`[VisualLoop Core] Health check endpoint: ${address}/v1/health`);
-  if (secretToken) {
-    console.log("[VisualLoop Core] Secret token authentication: ENABLED");
+  const activeToken = server.getSecretToken();
+  if (activeToken) {
+    console.log("[VisualLoop Core] Secret token authentication: ENABLED (Default)");
+    console.log("[VisualLoop Core] Token location: ~/.visualloop/auth_token");
+  } else {
+    console.log("[VisualLoop Core] Secret token authentication: DISABLED (--no-auth)");
   }
 
   const handleShutdown = async (signal: string) => {

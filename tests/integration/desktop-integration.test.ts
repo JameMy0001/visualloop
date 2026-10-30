@@ -95,9 +95,13 @@ describe("Phase 1 Desktop Integration Pipeline", () => {
     const testPort = 4199;
     const server = new CoreServer({ port: testPort, host: "127.0.0.1", storageFilePath: null });
     await server.start();
+    const token = server.getSecretToken();
 
     try {
-      const adapter = new GeminiCliAdapter({ serverUrl: `http://127.0.0.1:${testPort}` });
+      const adapter = new GeminiCliAdapter({
+        serverUrl: `http://127.0.0.1:${testPort}`,
+        secretToken: token,
+      });
       const session = await adapter.registerSession({
         adapterId: "gemini-cli",
         agentName: "Gemini CLI",

@@ -33,11 +33,15 @@ async function runVisualLoopGoldenPathDemo() {
     console.log(`[2/6] Starting Core Server on 127.0.0.1:${testPort}...`);
     const server = new CoreServer({ port: testPort, host: "127.0.0.1", storageFilePath: null });
     await server.start();
-    console.log(`  [OK] Core Server running at http://127.0.0.1:${testPort}`);
+    const token = server.getSecretToken();
+    console.log(`  [OK] Core Server running at http://127.0.0.1:${testPort} (Auth: REQUIRED)`);
 
     // 3. Register Gemini CLI Adapter Session
     console.log("\n[3/6] Registering Gemini CLI Session...");
-    const adapter = new GeminiCliAdapter({ serverUrl: `http://127.0.0.1:${testPort}` });
+    const adapter = new GeminiCliAdapter({
+      serverUrl: `http://127.0.0.1:${testPort}`,
+      secretToken: token,
+    });
     const session = await adapter.registerSession({
       adapterId: "gemini-cli",
       agentName: "Gemini CLI",
@@ -137,7 +141,9 @@ async function runVisualLoopGoldenPathDemo() {
     console.log(`  [PASS] Hash verification succeeded (${hash1.slice(0, 8)}... -> ${hash2.slice(0, 8)}...)`);
 
     // Verify History
-    const historyRes = await fetch(`http://127.0.0.1:${testPort}/v1/artifacts/art_demo_card/revisions`);
+    const historyRes = await fetch(`http://127.0.0.1:${testPort}/v1/artifacts/art_demo_card/revisions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const historyData = await historyRes.json();
     if (historyData.revisions.length !== 2) {
       throw new Error(`Expected 2 revisions in history, found ${historyData.revisions.length}`);

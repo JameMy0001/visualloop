@@ -44,6 +44,49 @@ class TauriBridge {
     };
   }
 
+  public async getAuthToken(): Promise<string | undefined> {
+    if (this.isTauriEnv) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const token = await invoke<string | null>("get_auth_token");
+        if (token && token.trim().length > 0) {
+          return token.trim();
+        }
+      } catch (err) {
+        console.warn("Failed to invoke get_auth_token from Tauri", err);
+      }
+    }
+
+    // Web / browser environment fallbacks
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryToken = urlParams.get("token");
+        if (queryToken && queryToken.trim().length > 0) {
+          return queryToken.trim();
+        }
+
+        const stored = localStorage.getItem("visualloop_auth_token");
+        if (stored && stored.trim().length > 0) {
+          return stored.trim();
+        }
+
+        const viteToken = (import.meta as any).env?.VITE_VISUALLOOP_TOKEN;
+        if (viteToken && typeof viteToken === "string" && viteToken.trim().length > 0) {
+          return viteToken.trim();
+        }
+
+        const winToken = (window as any).__VISUALLOOP_TOKEN__;
+        if (winToken && typeof winToken === "string" && winToken.trim().length > 0) {
+          return winToken.trim();
+        }
+      } catch {
+        // ignore browser storage exceptions
+      }
+    }
+    return undefined;
+  }
+
   public async setWindowMode(mode: WindowMode): Promise<void> {
     if (this.isTauriEnv) {
       try {

@@ -28,6 +28,11 @@ describe("Security Validation & Negative Testing", () => {
       expect(isValidOrigin("http://localhost.evil.com")).toBe(false);
       expect(isValidOrigin("http://evil-tauri.localhost")).toBe(false);
       expect(isValidOrigin("https://evil.org")).toBe(false);
+      expect(isValidOrigin("tauri://attacker.com")).toBe(false);
+      expect(isValidOrigin("tauri://evil.com/path")).toBe(false);
+      expect(isValidOrigin("http://tauri.localhost.attacker.com")).toBe(false);
+      expect(isValidOrigin("http://tauri.localhost:8080.attacker.com")).toBe(false);
+      expect(isValidOrigin("https://tauri.localhost.evil.com")).toBe(false);
     });
 
     it("rejects non-http/https protocols", () => {
