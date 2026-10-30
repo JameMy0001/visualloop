@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "pnpm --filter @visualloop/desktop dev",
     "dev:web": "pnpm --filter @visualloop/desktop dev:web",
+    "demo": "tsx scripts/demo-loop.ts",
     "build": "pnpm -r --stream build",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },

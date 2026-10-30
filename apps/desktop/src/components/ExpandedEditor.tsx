@@ -21,6 +21,7 @@ import {
   denormalizeBounds,
   normalizePoint,
 } from "@visualloop/protocol";
+import { generateDualCapture, DualCaptureResult } from "@visualloop/annotation-engine";
 import { DemoArtifactViewer } from "./DemoArtifactViewer";
 import { WindowControls } from "./WindowControls";
 
@@ -41,6 +42,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [history, setHistory] = useState<Annotation[][]>([]);
   const [generalInstruction, setGeneralInstruction] = useState<string>("");
   const [submittedJson, setSubmittedJson] = useState<string | null>(null);
+  const [dualCapture, setDualCapture] = useState<DualCaptureResult | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
 
   // Drawing state
@@ -177,6 +179,30 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
   const handleSubmit = () => {
     const viewport = getViewportDimensions();
+    const finalAnnotations = annotations.length > 0 ? annotations : [
+      {
+        id: `ann_default_${Date.now()}`,
+        type: "rectangle" as const,
+        bounds: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
+        instruction: generalInstruction || "Review general visual presentation",
+        color: "#3B82F6",
+        strokeWidth: 2,
+        createdAt: new Date().toISOString(),
+      }
+    ];
+
+    // Minimal SVG capture baseline
+    const baseSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(viewport.width)} ${Math.round(viewport.height)}"><rect width="100%" height="100%" fill="#070B14"/></svg>`;
+    const dual = generateDualCapture(baseSvg, finalAnnotations, {
+      width: Math.round(viewport.width),
+      height: Math.round(viewport.height),
+      devicePixelRatio: window.devicePixelRatio || 1,
+      zoom: 1,
+      scrollX: 0,
+      scrollY: 0,
+    });
+    setDualCapture(dual);
+
     const submission: FeedbackSubmission = {
       protocolVersion: "1.0",
       feedbackId: `fb_${Date.now()}`,
@@ -191,18 +217,10 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
         scrollX: 0,
         scrollY: 0,
       },
-      annotations: annotations.length > 0 ? annotations : [
-        {
-          id: `ann_default_${Date.now()}`,
-          type: "rectangle",
-          bounds: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
-          instruction: generalInstruction || "Review general visual presentation",
-          color: "#3B82F6",
-          strokeWidth: 2,
-          createdAt: new Date().toISOString(),
-        }
-      ],
+      annotations: finalAnnotations,
       generalInstruction: generalInstruction || undefined,
+      originalScreenshotDataUrl: dual.originalDataUrl,
+      annotatedScreenshotDataUrl: dual.annotatedDataUrl,
       idempotencyKey: `idem_${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
@@ -527,11 +545,29 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
               </button>
             </div>
 
-            <p className="text-xs text-slate-300">
-              Validated against <code className="text-blue-400 font-mono">@visualloop/protocol</code> FeedbackSubmission schema:
-            </p>
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>
+                Validated against <code className="text-blue-400 font-mono">@visualloop/protocol</code> schema
+              </span>
+              {dualCapture && (
+                <span className="text-emerald-400 font-medium">Dual Captures Generated</span>
+              )}
+            </div>
 
-            <pre className="text-[11px] font-mono bg-slate-950 p-3 rounded-lg border border-slate-800 overflow-x-auto max-h-60 text-slate-300">
+            {dualCapture && (
+              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-3">
+                <div
+                  className="w-28 h-20 bg-slate-900 rounded border border-slate-700 overflow-hidden flex items-center justify-center p-1"
+                  dangerouslySetInnerHTML={{ __html: dualCapture.annotatedSvg }}
+                />
+                <div className="flex-1 text-[11px] text-slate-400">
+                  <div className="text-slate-200 font-semibold mb-0.5">Annotated Screenshot Attached</div>
+                  <div>Composite SVG/PNG generated with numbered markers and highlighted regions.</div>
+                </div>
+              </div>
+            )}
+
+            <pre className="text-[11px] font-mono bg-slate-950 p-3 rounded-lg border border-slate-800 overflow-x-auto max-h-48 text-slate-300">
               {submittedJson}
             </pre>
 

@@ -12,6 +12,7 @@ export default defineConfig({
     alias: {
       "@visualloop/protocol": path.resolve(__dirname, "./packages/protocol/src/index.ts"),
       "@visualloop/preview-engine": path.resolve(__dirname, "./packages/preview-engine/src/index.ts"),
+      "@visualloop/annotation-engine": path.resolve(__dirname, "./packages/annotation-engine/src/index.ts"),
       "@visualloop/core-server": path.resolve(__dirname, "./packages/core-server/src/index.ts"),
       "@visualloop/agent-sdk": path.resolve(__dirname, "./packages/agent-sdk/src/index.ts"),
       "@visualloop/adapter-gemini-cli": path.resolve(__dirname, "./adapters/gemini-cli/src/index.ts"),
