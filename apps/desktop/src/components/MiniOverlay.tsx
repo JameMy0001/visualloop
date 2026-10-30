@@ -1,91 +1,96 @@
-import React from "react";
-import { Maximize2, MousePointer, Eye, Sliders } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { WindowState } from "@visualloop/protocol";
-import { DemoArtifactViewer } from "./DemoArtifactViewer";
 import { WindowControls } from "./WindowControls";
+import { ArtifactViewer } from "./ArtifactViewer";
+import { ActiveArtifactInfo } from "../services/coreClient";
 
 interface MiniOverlayProps {
+  artifact: ActiveArtifactInfo | null;
+  agentName?: string;
   state: WindowState;
   opacity: number;
   clickThrough: boolean;
   onExpand: () => void;
   onToggleClickThrough: () => void;
-  onChangeOpacity: (val: number) => void;
   onClose: () => void;
 }
 
 export const MiniOverlay: React.FC<MiniOverlayProps> = ({
+  artifact,
+  agentName = "Gemini CLI",
   state,
   opacity,
   clickThrough,
   onExpand,
   onToggleClickThrough,
-  onChangeOpacity,
   onClose,
 }) => {
-  const [showControls, setShowControls] = React.useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const statusText = artifact
+    ? `Ready · r${artifact.revision}`
+    : state === "mini_waiting"
+    ? "Awaiting update"
+    : "Waiting";
 
   return (
     <div
       style={{ opacity }}
-      className="relative w-full h-full flex flex-col rounded-xl overflow-hidden shadow-2xl border border-slate-700/60 bg-slate-950/85 backdrop-blur-md transition-opacity duration-200"
-      onMouseEnter={() => setShowControls(true)}
-      onMouseLeave={() => setShowControls(false)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="relative w-full h-full flex flex-col rounded-[14px] overflow-hidden bg-[#FFFFFF] border border-[#E5E5E5] shadow-[0_8px_24px_rgba(0,0,0,0.12)] select-none transition-opacity duration-150"
     >
-      {/* Top Header / Drag Region */}
+      {/* 34px Minimal Header Toolbar */}
       <WindowControls
         mode="mini"
         state={state}
+        statusText={statusText}
         clickThrough={clickThrough}
         onToggleExpand={onExpand}
         onToggleClickThrough={onToggleClickThrough}
         onClose={onClose}
       />
 
-      {/* Artifact Preview Area */}
-      <div className="relative flex-1 w-full h-[calc(100%-2rem)] p-1.5 overflow-hidden">
-        <DemoArtifactViewer showSwitcher={false} className="rounded-lg border border-slate-800/80" />
+      {/* Main Artifact Viewport */}
+      <div className="relative flex-1 w-full overflow-hidden bg-[#FAFAFA]">
+        <ArtifactViewer artifact={artifact} className="w-full h-full" />
 
-        {/* Click-through notice badge */}
+        {/* Click-through notice pill */}
         {clickThrough && (
-          <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-[10px] font-medium text-amber-300 backdrop-blur-sm pointer-events-none">
-            Click-through Active (Press ⌘+Shift+V to unlock)
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#171717]/80 text-[10px] font-medium text-[#FFFFFF] backdrop-blur-sm pointer-events-none">
+            Click-through active (⌘+Shift+V to unlock)
           </div>
         )}
 
-        {/* Hover Action Overlay & Expand Handle */}
-        <div
-          className={`absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-150 ${
-            showControls ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-          }`}
-        >
-          <div className="flex flex-col items-center gap-2 p-2">
+        {/* Hover Expand Shortcut Pill */}
+        {artifact && isHovered && !clickThrough && (
+          <div className="absolute inset-0 bg-[#FFFFFF]/40 backdrop-blur-[1px] flex items-center justify-center transition-opacity duration-150 pointer-events-auto">
             <button
               onClick={onExpand}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[#171717] hover:bg-[#303030] text-[#FFFFFF] text-xs font-medium shadow-md transition-all active:scale-95 cursor-pointer"
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              <ArrowUpRight className="w-3.5 h-3.5" />
               <span>Expand & Annotate</span>
             </button>
-            <span className="text-[10px] text-slate-300 font-mono tracking-tight">
-              Shortcut: ⌘+Shift+V
-            </span>
           </div>
+        )}
+      </div>
 
-          {/* Quick Opacity Adjuster at bottom */}
-          <div className="absolute bottom-2.5 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900/90 border border-slate-700/60">
-            <Eye className="w-3 h-3 text-slate-400" />
-            <input
-              type="range"
-              min="0.3"
-              max="1.0"
-              step="0.05"
-              value={opacity}
-              onChange={(e) => onChangeOpacity(parseFloat(e.target.value))}
-              className="w-14 h-1 accent-blue-500 cursor-pointer"
-              title={`Opacity: ${Math.round(opacity * 100)}%`}
-            />
-          </div>
+      {/* 24px Clean Metadata Bar */}
+      <div className="h-[24px] px-3 flex items-center justify-between bg-[#FAFAFA] border-t border-[#F0F0F0] text-[11px] text-[#737373]">
+        <div className="truncate max-w-[200px] font-mono">
+          {artifact ? (
+            <span>
+              {artifact.title || artifact.entrypoint.split("/").pop()}
+              <span className="ml-1 text-[#A3A3A3]">r{artifact.revision}</span>
+            </span>
+          ) : (
+            <span>No active session</span>
+          )}
+        </div>
+        <div className="text-[10px] text-[#A3A3A3] font-medium tracking-tight">
+          {agentName}
         </div>
       </div>
     </div>

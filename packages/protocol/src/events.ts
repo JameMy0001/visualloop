@@ -14,6 +14,7 @@ export const EventTypeSchema = z.enum([
   "feedback.failed",
   "revision.published",
   "window.state_changed",
+  "state.snapshot",
 ]);
 
 export type EventType = z.infer<typeof EventTypeSchema>;
@@ -42,8 +43,11 @@ export const ServerEventSchema = z.discriminatedUnion("type", [
     timestamp: z.string().datetime(),
     payload: z.object({
       artifactId: z.string(),
+      sessionId: z.string().optional(),
       revision: z.number(),
       entrypoint: z.string(),
+      kind: z.enum(["svg", "html"]).optional(),
+      title: z.string().optional(),
       content: z.string().optional(),
     }),
   }),
@@ -77,6 +81,26 @@ export const ServerEventSchema = z.discriminatedUnion("type", [
     payload: z.object({
       previousState: WindowStateSchema,
       currentState: WindowStateSchema,
+    }),
+  }),
+  z.object({
+    type: z.literal("state.snapshot"),
+    timestamp: z.string().datetime(),
+    payload: z.object({
+      activeSessionId: z.string().nullable().optional(),
+      activeArtifact: z
+        .object({
+          sessionId: z.string(),
+          artifactId: z.string(),
+          revision: z.number(),
+          kind: z.enum(["svg", "html"]),
+          title: z.string().optional(),
+          entrypoint: z.string(),
+          content: z.string().optional(),
+        })
+        .nullable()
+        .optional(),
+      sessions: z.array(SessionHandleSchema).optional(),
     }),
   }),
 ]);

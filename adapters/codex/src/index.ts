@@ -1,6 +1,7 @@
 import {
   AgentAdapter,
   BaseAgentAdapter,
+  UnsupportedCapabilityError,
 } from "@visualloop/agent-sdk";
 import {
   SessionRegistration,
@@ -27,23 +28,19 @@ export class CodexAdapter extends BaseAgentAdapter implements AgentAdapter {
   }
 
   async publishArtifact(input: ArtifactPublication): Promise<void> {
-    console.info(`[CodexAdapter] Published artifact ${input.artifactId}`);
+    console.info(`[CodexAdapter] Artifact publication registered for ${input.artifactId}`);
   }
 
   async deliverFeedback(input: FeedbackSubmission): Promise<DeliveryReceipt> {
-    return {
-      feedbackId: input.feedbackId,
-      sessionId: input.sessionId,
-      status: "delivered",
-      deliveredAt: new Date().toISOString(),
-      adapterMessage: "Delivered feedback to Codex adapter queue",
-    };
+    throw new UnsupportedCapabilityError(
+      "Codex automated feedback queue delivery is currently experimental. Please use Gemini CLI adapter or export feedback JSON."
+    );
   }
 
   async getCapabilities(): Promise<AgentCapabilities> {
     return {
       supportsDirectInjection: false,
-      supportsFilePolling: true,
+      supportsFilePolling: false,
       supportsStreaming: false,
       acceptedArtifactKinds: ["svg", "html"],
     };

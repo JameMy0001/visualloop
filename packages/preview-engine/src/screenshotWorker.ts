@@ -23,18 +23,33 @@ export interface ScreenshotResult {
  */
 export class ScreenshotWorker {
   public async capture(request: ScreenshotRequest): Promise<ScreenshotResult> {
-    const { viewport, annotations = [] } = request;
+    const { htmlOrSvgContent, kind, viewport, annotations = [] } = request;
     const width = Math.round(viewport.width);
     const height = Math.round(viewport.height);
     const capturedAt = new Date().toISOString();
 
-    // 1x1 transparent PNG fallback buffer
-    const mockPngBase64 =
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    let originalSvg = htmlOrSvgContent;
+    if (kind === "html" || !htmlOrSvgContent.trim().startsWith("<svg")) {
+      originalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <foreignObject width="100%" height="100%">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;overflow:hidden;">
+      ${htmlOrSvgContent}
+    </div>
+  </foreignObject>
+</svg>`;
+    }
+
+    const annotatedSvg = this.generateAnnotatedSvg(originalSvg, annotations, { width, height });
+
+    const toBase64 = (str: string) =>
+      typeof Buffer !== "undefined"
+        ? Buffer.from(str, "utf-8").toString("base64")
+        : btoa(unescape(encodeURIComponent(str)));
 
     return {
-      originalPngBase64: mockPngBase64,
-      annotatedPngBase64: mockPngBase64,
+      originalPngBase64: toBase64(originalSvg),
+      annotatedPngBase64: toBase64(annotatedSvg),
       width,
       height,
       capturedAt,

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import {
   SessionHandle,
   SessionRegistration,
@@ -8,6 +11,24 @@ import {
   DeliveryReceipt,
 } from "@visualloop/protocol";
 
+export interface RuntimeSnapshot {
+  activeSessionId: string | null;
+  activeArtifact: {
+    sessionId: string;
+    artifactId: string;
+    revision: number;
+    kind: "svg" | "html";
+    title?: string;
+    entrypoint: string;
+    content?: string;
+  } | null;
+  sessions: SessionHandle[];
+}
+
+export interface CoreStoreOptions {
+  storageFilePath?: string | null;
+}
+
 export class CoreStore {
   private sessions = new Map<string, SessionHandle>();
   private artifacts = new Map<string, ArtifactPublication>();
@@ -15,6 +36,96 @@ export class CoreStore {
   private feedback = new Map<string, FeedbackSubmission>();
   private feedbackStatus = new Map<string, FeedbackStatus>();
   private idempotencyKeys = new Set<string>();
+
+  private activeSessionId: string | null = null;
+  private activeArtifact: RuntimeSnapshot["activeArtifact"] = null;
+  private storageFilePath: string | null = null;
+
+  constructor(options: CoreStoreOptions = {}) {
+    if (options.storageFilePath === null) {
+      this.storageFilePath = null;
+    } else if (typeof options.storageFilePath === "string") {
+      this.storageFilePath = options.storageFilePath;
+    } else {
+      // Default: persist to ~/.visualloop/store.json
+      this.storageFilePath = path.join(os.homedir(), ".visualloop", "store.json");
+    }
+
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk(): void {
+    if (!this.storageFilePath) return;
+    try {
+      if (fs.existsSync(this.storageFilePath)) {
+        const raw = fs.readFileSync(this.storageFilePath, "utf-8");
+        const data = JSON.parse(raw);
+
+        if (Array.isArray(data.sessions)) {
+          for (const s of data.sessions) this.sessions.set(s.sessionId, s);
+        }
+        if (Array.isArray(data.artifacts)) {
+          for (const a of data.artifacts) this.artifacts.set(a.artifactId, a);
+        }
+        if (data.revisions && typeof data.revisions === "object") {
+          for (const [k, v] of Object.entries(data.revisions)) {
+            if (Array.isArray(v)) this.revisions.set(k, v as ArtifactRevisionRecord[]);
+          }
+        }
+        if (Array.isArray(data.feedback)) {
+          for (const f of data.feedback) this.feedback.set(f.feedbackId, f);
+        }
+        if (data.feedbackStatus && typeof data.feedbackStatus === "object") {
+          for (const [k, v] of Object.entries(data.feedbackStatus)) {
+            this.feedbackStatus.set(k, v as FeedbackStatus);
+          }
+        }
+        if (Array.isArray(data.idempotencyKeys)) {
+          for (const k of data.idempotencyKeys) this.idempotencyKeys.add(k);
+        }
+        if (typeof data.activeSessionId === "string") {
+          this.activeSessionId = data.activeSessionId;
+        }
+        if (data.activeArtifact) {
+          this.activeArtifact = data.activeArtifact;
+        }
+      }
+    } catch (err) {
+      console.warn("[CoreStore] Failed to load store from disk, starting fresh:", err);
+    }
+  }
+
+  private saveToDisk(): void {
+    if (!this.storageFilePath) return;
+    try {
+      const dir = path.dirname(this.storageFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      const serialized = JSON.stringify(
+        {
+          sessions: Array.from(this.sessions.values()),
+          artifacts: Array.from(this.artifacts.values()),
+          revisions: Object.fromEntries(this.revisions.entries()),
+          feedback: Array.from(this.feedback.values()),
+          feedbackStatus: Object.fromEntries(this.feedbackStatus.entries()),
+          idempotencyKeys: Array.from(this.idempotencyKeys.values()),
+          activeSessionId: this.activeSessionId,
+          activeArtifact: this.activeArtifact,
+        },
+        null,
+        2
+      );
+
+      // Atomic write via temp file
+      const tempPath = `${this.storageFilePath}.tmp.${Date.now()}`;
+      fs.writeFileSync(tempPath, serialized, "utf-8");
+      fs.renameSync(tempPath, this.storageFilePath);
+    } catch (err) {
+      console.warn("[CoreStore] Failed to persist state to disk:", err);
+    }
+  }
 
   // --- Session Management ---
   public registerSession(input: SessionRegistration): SessionHandle {
@@ -35,6 +146,8 @@ export class CoreStore {
     };
 
     this.sessions.set(sessionId, handle);
+    this.activeSessionId = sessionId;
+    this.saveToDisk();
     return handle;
   }
 
@@ -42,8 +155,16 @@ export class CoreStore {
     return this.sessions.get(sessionId);
   }
 
+  public getAllSessions(): SessionHandle[] {
+    return Array.from(this.sessions.values());
+  }
+
   // --- Artifact & Revision Management ---
-  public publishArtifact(input: ArtifactPublication, contentHash: string): ArtifactRevisionRecord {
+  public publishArtifact(
+    input: ArtifactPublication,
+    contentHash: string,
+    sanitizedContent?: string
+  ): ArtifactRevisionRecord {
     const session = this.getSession(input.sessionId);
     if (!session) {
       throw new Error(`Unauthorized: Session ${input.sessionId} not found`);
@@ -75,6 +196,18 @@ export class CoreStore {
     currentList.push(revisionRecord);
     this.revisions.set(input.artifactId, currentList);
 
+    this.activeSessionId = input.sessionId;
+    this.activeArtifact = {
+      sessionId: input.sessionId,
+      artifactId: input.artifactId,
+      revision: revisionNumber,
+      kind: input.kind,
+      title: input.title || path.basename(input.entrypoint),
+      entrypoint: input.entrypoint,
+      content: sanitizedContent || input.content,
+    };
+
+    this.saveToDisk();
     return revisionRecord;
   }
 
@@ -103,8 +236,9 @@ export class CoreStore {
 
     this.idempotencyKeys.add(submission.idempotencyKey);
     this.feedback.set(submission.feedbackId, submission);
-    this.feedbackStatus.set(submission.feedbackId, "submitted");
+    this.feedbackStatus.set(submission.feedbackId, "queued");
 
+    this.saveToDisk();
     return { submission, duplicate: false };
   }
 
@@ -127,6 +261,8 @@ export class CoreStore {
     }
 
     this.feedbackStatus.set(feedbackId, "acknowledged");
+    this.saveToDisk();
+
     return {
       feedbackId,
       sessionId: fb.sessionId,
@@ -140,6 +276,14 @@ export class CoreStore {
     return this.feedbackStatus.get(feedbackId);
   }
 
+  public getSnapshot(): RuntimeSnapshot {
+    return {
+      activeSessionId: this.activeSessionId,
+      activeArtifact: this.activeArtifact,
+      sessions: this.getAllSessions(),
+    };
+  }
+
   public clear(): void {
     this.sessions.clear();
     this.artifacts.clear();
@@ -147,5 +291,15 @@ export class CoreStore {
     this.feedback.clear();
     this.feedbackStatus.clear();
     this.idempotencyKeys.clear();
+    this.activeSessionId = null;
+    this.activeArtifact = null;
+
+    if (this.storageFilePath && fs.existsSync(this.storageFilePath)) {
+      try {
+        fs.unlinkSync(this.storageFilePath);
+      } catch {
+        // ignore
+      }
+    }
   }
 }

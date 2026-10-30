@@ -20,7 +20,7 @@ export class WebSocketManager {
   private wss: WebSocketServer | null = null;
   private clients = new Set<WebSocket>();
 
-  public initialize(server: any, secretToken?: string): void {
+  public initialize(server: any, secretToken?: string, getSnapshot?: () => any): void {
     this.wss = new WebSocketServer({ server, path: "/v1/ws" });
 
     this.wss.on("connection", (ws, req) => {
@@ -69,26 +69,21 @@ export class WebSocketManager {
         this.clients.delete(ws);
       });
 
-      // Send initial connection handshake
-      ws.send(
-        JSON.stringify({
-          type: "session.registered",
-          timestamp: new Date().toISOString(),
-          payload: {
-            sessionId: "system_ready",
-            adapterId: "visualloop-core",
-            workspaceRoot: "/",
-            capabilities: {
-              supportsDirectInjection: false,
-              supportsFilePolling: true,
-              supportsStreaming: false,
-              acceptedArtifactKinds: ["svg", "html"],
-            },
-            createdAt: new Date().toISOString(),
-            lastActiveAt: new Date().toISOString(),
-          },
-        })
-      );
+      // Send initial state snapshot if provider is available
+      if (getSnapshot) {
+        try {
+          const snapshot = getSnapshot();
+          ws.send(
+            JSON.stringify({
+              type: "state.snapshot",
+              timestamp: new Date().toISOString(),
+              payload: snapshot,
+            })
+          );
+        } catch (e) {
+          console.warn("[WebSocket] Failed to send initial snapshot:", e);
+        }
+      }
     });
   }
 

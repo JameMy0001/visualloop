@@ -16,6 +16,13 @@ export interface AgentAdapter {
   getCapabilities(): Promise<AgentCapabilities>;
 }
 
+export class UnsupportedCapabilityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnsupportedCapabilityError";
+  }
+}
+
 export abstract class BaseAgentAdapter implements AgentAdapter {
   abstract id: string;
   abstract registerSession(input: SessionRegistration): Promise<SessionHandle>;

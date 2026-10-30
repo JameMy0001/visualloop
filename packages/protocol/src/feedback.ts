@@ -54,22 +54,31 @@ export const AnnotationSchema = z.object({
 
 export type Annotation = z.infer<typeof AnnotationSchema>;
 
-export const FeedbackSubmissionSchema = z.object({
-  protocolVersion: z.literal("1.0").default("1.0"),
-  feedbackId: z.string().min(1),
-  sessionId: z.string().min(1),
-  artifactId: z.string().min(1),
-  revision: z.number().int().nonnegative(),
-  viewport: ViewportSchema,
-  annotations: z.array(AnnotationSchema).min(1),
-  generalInstruction: z.string().optional(),
-  originalScreenshotPath: z.string().optional(),
-  annotatedScreenshotPath: z.string().optional(),
-  originalScreenshotDataUrl: z.string().optional(),
-  annotatedScreenshotDataUrl: z.string().optional(),
-  idempotencyKey: z.string().min(1),
-  createdAt: z.string().datetime(),
-});
+export const FeedbackSubmissionSchema = z
+  .object({
+    protocolVersion: z.literal("1.0").default("1.0"),
+    feedbackId: z.string().min(1),
+    sessionId: z.string().min(1),
+    artifactId: z.string().min(1),
+    revision: z.number().int().nonnegative(),
+    viewport: ViewportSchema,
+    annotations: z.array(AnnotationSchema).default([]),
+    generalInstruction: z.string().optional(),
+    originalScreenshotPath: z.string().optional(),
+    annotatedScreenshotPath: z.string().optional(),
+    originalScreenshotDataUrl: z.string().optional(),
+    annotatedScreenshotDataUrl: z.string().optional(),
+    idempotencyKey: z.string().min(1),
+    createdAt: z.string().datetime(),
+  })
+  .refine(
+    (data) =>
+      data.annotations.length > 0 ||
+      (typeof data.generalInstruction === "string" && data.generalInstruction.trim().length > 0),
+    {
+      message: "Feedback must contain at least one visual annotation or a general instruction.",
+    }
+  );
 
 export type FeedbackSubmission = z.infer<typeof FeedbackSubmissionSchema>;
 

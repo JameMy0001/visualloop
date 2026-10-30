@@ -13,6 +13,7 @@ export interface CoreServerConfig {
   port?: number;
   host?: string;
   secretToken?: string;
+  storageFilePath?: string | null;
 }
 
 export class CoreServer {
@@ -33,7 +34,14 @@ export class CoreServer {
       bodyLimit: 10 * 1024 * 1024, // 10MB limit
     });
 
-    this.store = new CoreStore();
+    const storageFilePath =
+      config.storageFilePath !== undefined
+        ? config.storageFilePath
+        : process.env.NODE_ENV === "test" || process.env.VITEST
+        ? null
+        : undefined;
+
+    this.store = new CoreStore({ storageFilePath });
     this.ws = new WebSocketManager();
 
     this.setupRoutes();
@@ -57,6 +65,11 @@ export class CoreServer {
         version: "1.0",
         clientsConnected: this.ws.getClientCount(),
       };
+    });
+
+    // Current State Snapshot
+    this.fastify.get("/v1/state", async () => {
+      return this.store.getSnapshot();
     });
 
     // 1. Session Registration
@@ -104,8 +117,8 @@ export class CoreServer {
           publication.kind
         );
 
-        // Save revision
-        const revision = this.store.publishArtifact(publication, loaded.contentHash);
+        // Save revision and content
+        const revision = this.store.publishArtifact(publication, loaded.contentHash, loaded.content);
 
         // Broadcast real-time events
         this.ws.broadcast({
@@ -118,8 +131,11 @@ export class CoreServer {
           type: "preview.ready",
           timestamp: new Date().toISOString(),
           payload: {
+            sessionId: publication.sessionId,
             artifactId: publication.artifactId,
             revision: revision.revision,
+            kind: publication.kind,
+            title: publication.title,
             entrypoint: publication.entrypoint,
             content: loaded.content,
           },
@@ -204,7 +220,7 @@ export class CoreServer {
 
   public async start(): Promise<string> {
     await this.fastify.listen({ port: this.port, host: this.host });
-    this.ws.initialize(this.fastify.server, this.secretToken);
+    this.ws.initialize(this.fastify.server, this.secretToken, () => this.store.getSnapshot());
     return `http://${this.host}:${this.port}`;
   }
 

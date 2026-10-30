@@ -1,10 +1,10 @@
 # VisualLoop
 
 > **Tagline:** See it. Circle it. Fix it.  
-> **Status:** Phase 1 Complete (Desktop Prototype & Protocol Engine)  
+> **Status:** Production-Ready Desktop Utility (Live Previews, True DOM Capture & Gemini Closed-Loop Feedback)  
 > **License:** MIT
 
-VisualLoop is an open-source, local-first visual feedback companion for AI coding agents. When an agent produces a previewable artifact (such as an SVG, HTML snippet, or UI component), VisualLoop displays it in a transparent, always-on-top desktop overlay. The user can expand the window, circle or highlight specific areas, add structured instructions, and submit the annotated feedback directly to the agent session.
+VisualLoop is an open-source, local-first visual feedback companion for AI coding agents. When an agent creates or modifies a visual artifact (SVG or HTML snippet), VisualLoop displays it in a clean, floating desktop overlay. The user can expand the window, circle or highlight specific areas, add notes, and submit feedback directly back to the agent session.
 
 ---
 
@@ -13,41 +13,46 @@ VisualLoop is an open-source, local-first visual feedback companion for AI codin
 ```
                       +-----------------------------+
                       |       AI Coding Agent       |
-                      |  (Gemini CLI, Claude, etc.) |
+                      |  (Gemini CLI, Supported)    |
                       +--------------+--------------+
                                      |
-                       Adapter Bridge (Port 4178)
+                        Adapter Bridge (Port 4178)
                                      |
                       +--------------v--------------+
-                      |      VisualLoop Core        |
-                      |    (Protocol & Schemas)     |
+                      |   VisualLoop Core Server    |
+                      |   - Atomic File Store       |
+                      |   - Feedback Queue & Ack    |
+                      |   - Authenticated WebSocket |
                       +--------------+--------------+
                                      |
                       +--------------v--------------+
                       |   Tauri 2 Desktop Shell     |
                       |   - Mini Floating Overlay   |
-                      |   - Expanded React Editor   |
+                      |   - Monochrome Design System|
+                      |   - Live Artifact Renderer  |
                       |   - Normalized Coordinates  |
                       +-----------------------------+
 ```
 
-### Phase 1 Capabilities Delivered
-- **Monorepo Layout:** Standard pnpm workspace with `@visualloop/protocol`, `@visualloop/desktop`, core server, preview engine, annotation engine, agent SDK, adapters, and demo artifacts.
+### Core Features
+
 - **Tauri 2 Native Desktop Shell:**
-  - Mini overlay mode (~360 x 240 px, ~80% opacity, always-on-top, transparent backdrop, click-through toggle).
-  - Expansion to full annotation workspace (~1024 x 768 px, 100% opacity, click-through disabled).
-  - Global hotkey support (`Cmd+Shift+V` / `Ctrl+Shift+V`) and interactive handle for expansion.
-  - OS click-through toggling via `set_ignore_cursor_events`.
-- **Annotation & Protocol Engine:**
-  - Drawing tools: Circle, Rectangle, Arrow, Freehand sketch.
+  - Minimal monochrome design system (`#F5F5F5` background, `#FFFFFF` panels, `#171717` typography, functional red `#E14C45` annotations).
+  - Mini overlay mode (~360 x 220 px, floating, always-on-top, click-through toggle with keyboard lock release).
+  - Expanded annotation workspace (1024 x 768 px, resizable, draggable titlebar).
+  - Global hotkey support (`Cmd+Shift+V` / `Ctrl+Shift+V`).
+- **Live Preview Engine:**
+  - Live SVG & sandboxed HTML rendering (no mock or hardcoded solar-system fallback).
+  - Path traversal security, strict origin validation, and DOMPurify SVG sanitization.
+  - Empty state with clear guidance when awaiting agent artifacts.
+- **Truthful Annotation & Feedback Pipeline:**
+  - Native SVG capture directly from rendered canvas — no 1x1 dummy images.
+  - Drawing tools: Circle, Rectangle, Arrow, Freehand drawing.
   - Normalized coordinates `[0, 1]` relative to artifact canvas.
-  - Full feedback payload conforming to `FeedbackSubmission` schema.
-- **Bundled Demo Artifacts:**
-  - `examples/solar-system.svg`: Interactive vector illustration with multiple planets.
-  - `examples/animated-card/`: Modern HTML/CSS previewable component.
-- **Dual Execution Modes:**
-  - Native Tauri 2 Desktop mode (`pnpm dev`).
-  - Web Simulation mode (`pnpm dev:web`) for instant browser preview and headless CI.
+  - Stale revision notifications when an agent updates while user is reviewing.
+- **Agent Closed Loop:**
+  - **Gemini CLI:** Fully supported (`watchFeedback`, `getLatestFeedback`, `acknowledgeFeedback`, actionable prompt generation).
+  - **Claude Code & Codex:** Experimental stubs (transparently signal unsupported capabilities instead of returning fake delivered receipts).
 
 ---
 
@@ -58,26 +63,27 @@ visualloop/
 ├── apps/
 │   └── desktop/                 # Tauri 2 + React + Vite + Tailwind CSS
 │       ├── src/
-│       │   ├── components/      # MiniOverlay, ExpandedEditor, WindowControls
+│       │   ├── components/      # MiniOverlay, ExpandedEditor, WindowControls, ArtifactViewer
 │       │   ├── hooks/           # useWindowState
-│       │   ├── services/        # tauriBridge
-│       │   └── styles/          # globals.css
+│       │   ├── services/        # tauriBridge, coreClient, eventClient
+│       │   ├── state/           # useVisualLoopStore
+│       │   └── styles/          # globals.css (monochrome design tokens)
 │       └── src-tauri/           # Rust Tauri 2 shell (lib.rs, main.rs, tauri.conf.json)
 ├── packages/
 │   ├── protocol/                # Zod schemas, types, coordinate normalization
-│   ├── core-server/             # Fastify, WebSocket, SQLite persistence (Phase 4)
-│   ├── preview-engine/          # Renderers and screenshot worker (Phase 2)
-│   ├── annotation-engine/       # Canvas drawing and geometry (Phase 3)
-│   └── agent-sdk/               # AgentAdapter interface
+│   ├── core-server/             # Fastify, WebSocket, atomic file persistence, feedback queue
+│   ├── preview-engine/          # Safe path validation, SVG/HTML sanitization, rasterization
+│   ├── annotation-engine/       # Canvas geometry, undo/redo, dual screenshot capture
+│   └── agent-sdk/               # AgentAdapter interface & error types
 ├── adapters/
-│   ├── gemini-cli/              # Gemini CLI adapter
-│   ├── claude-code/             # Claude Code adapter
-│   └── codex/                   # Codex adapter
+│   ├── gemini-cli/              # Gemini CLI adapter (Supported)
+│   ├── claude-code/             # Claude Code adapter (Experimental)
+│   └── codex/                   # Codex adapter (Experimental)
 ├── skills/
 │   └── visualloop/SKILL.md      # Agent integration skill definition
 ├── examples/
-│   ├── solar-system.svg         # Demo SVG artifact
-│   └── animated-card/           # Demo HTML/CSS artifact
+│   ├── solar-system.svg         # Sample SVG artifact
+│   └── animated-card/           # Sample HTML/CSS artifact
 └── tests/
     └── integration/             # End-to-end integration tests
 ```
@@ -87,6 +93,7 @@ visualloop/
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js >= 20 (v22 LTS recommended)
 - pnpm >= 9 (`npm install -g pnpm`)
 - Rust toolchain (stable, rustc >= 1.77) with Cargo (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
@@ -94,8 +101,8 @@ visualloop/
 ### Installation
 
 ```bash
-# Install workspace dependencies
 pnpm install
+pnpm build
 ```
 
 ### Running the Application
@@ -117,45 +124,30 @@ pnpm dev
 
 ---
 
-## Manual Verification Steps (Phase 1)
+## Verified Golden Path E2E Demo
 
-1. Launch application via `pnpm dev:web` or `pnpm dev`.
-2. Observe the **Mini Overlay**:
-   - Window opens at ~360 x 240 px with semi-transparent background (~80% opacity).
-   - Bundled SVG demo (Solar System) renders within the preview box.
-3. Test **Click-through Toggle**:
-   - Click the cursor icon in the title bar to enable click-through.
-   - Status badge displays "Click-through Active".
-4. Test **Window Expansion**:
-   - Hover over the preview and click "Expand & Annotate" OR press `Cmd+Shift+V` (`Ctrl+Shift+V` on Windows/Linux).
-   - Window expands to 1024 x 768 px with 100% opacity.
-5. Test **Annotation & Feedback Generation**:
-   - Select the Circle tool.
-   - Click and drag over Saturn or Earth.
-   - In the right sidebar, enter instructions (e.g., "Make Saturn rings larger").
-   - Click "Submit to Agent Session".
-   - A modal displays the validated JSON output containing normalized `[0, 1]` coordinates, matching `@visualloop/protocol`.
-6. Return to Mini:
-   - Click "Done (Back to Mini)" or press `Escape`.
-   - Window restores to mini floating mode and displays status "Waiting Agent".
+Run the automated closed-loop smoke test:
+
+```bash
+pnpm demo
+# or
+pnpm demo:golden-path
+```
+
+This script:
+1. Spawns Core Server on an ephemeral port.
+2. Registers a Gemini CLI session.
+3. Publishes Revision 1 of an SVG artifact.
+4. Simulates user feedback (annotation + general direction).
+5. Agent receives feedback, acknowledges receipt, and edits the source file on disk.
+6. Publishes Revision 2 and asserts different content hashes and revision progression.
 
 ---
 
-## Automated Test Execution
+## Automated Test Suite
 
-Run the Vitest test suite covering protocol validation, coordinate normalization, and window state transitions:
+Run the Vitest test suite covering protocol validation, path security, HTML sanitization, coordinate normalization, store snapshots, and closed-loop feedback:
 
 ```bash
 pnpm test
 ```
-
----
-
-## Implementation Roadmap
-
-- [x] **Phase 1 — Desktop prototype:** Tauri 2 + React + Vite, mini overlay, expanded editor, hotkeys, demo artifact, protocol package.
-- [x] **Phase 2 — Preview renderer:** Safe path validation, SVG XSS sanitization, strict CSP sandbox for HTML/CSS, dual demo switcher.
-- [x] **Phase 3 — Annotation workspace:** Full annotation geometry, undo/redo manager, dual screenshot capture (original + marked up composite).
-- [x] **Phase 4 — Core protocol and state:** Fastify localhost API (`127.0.0.1:4178`), WebSocket event bus, session/artifact/revision/feedback store.
-- [x] **Phase 5 — Real agent integration:** Gemini CLI adapter implementation, prompt formatting, fallback file writing (`visualloop-feedback.json`).
-- [x] **Phase 6 — OSS release:** Packaging, CI builds, GitHub Actions workflow, automated demo script (`pnpm demo`).

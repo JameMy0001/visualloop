@@ -1,17 +1,16 @@
 import React, { useState, useRef, useCallback } from "react";
 import {
+  ArrowLeft,
   Circle,
   Square,
   ArrowUpRight,
   Pencil,
-  Type,
   Undo2,
   Trash2,
   Send,
-  Minimize2,
-  CheckCircle2,
-  Copy,
-  Info,
+  X,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   Annotation,
@@ -22,42 +21,52 @@ import {
   normalizePoint,
 } from "@visualloop/protocol";
 import { generateDualCapture, DualCaptureResult } from "@visualloop/annotation-engine";
-import { DemoArtifactViewer } from "./DemoArtifactViewer";
-import { WindowControls } from "./WindowControls";
+import { ArtifactViewer } from "./ArtifactViewer";
+import { ActiveArtifactInfo } from "../services/coreClient";
+import { FeedbackUIStatus } from "../state/useVisualLoopStore";
+import { tauriBridge } from "../services/tauriBridge";
 
 interface ExpandedEditorProps {
+  artifact: ActiveArtifactInfo | null;
+  agentName?: string;
+  staleRevisionAvailable?: number | null;
+  onAcceptNewRevision?: () => void;
   onShrink: () => void;
   onClose: () => void;
-  onSubmitFeedback: (submission: FeedbackSubmission) => void;
+  onSubmitFeedback: (submission: FeedbackSubmission) => Promise<boolean | void>;
+  feedbackStatus?: FeedbackUIStatus;
 }
 
 export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
+  artifact,
+  agentName = "Gemini CLI",
+  staleRevisionAvailable,
+  onAcceptNewRevision,
   onShrink,
   onClose,
   onSubmitFeedback,
+  feedbackStatus = "idle",
 }) => {
   const [activeTool, setActiveTool] = useState<AnnotationType>("circle");
-  const [selectedColor, setSelectedColor] = useState<string>("#EF4444");
+  const selectedColor = "#E14C45"; // Functional monochrome-contrast red from design brief
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [history, setHistory] = useState<Annotation[][]>([]);
   const [generalInstruction, setGeneralInstruction] = useState<string>("");
-  const [submittedJson, setSubmittedJson] = useState<string | null>(null);
-  const [dualCapture, setDualCapture] = useState<DualCaptureResult | null>(null);
-  const [copied, setCopied] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Drawing state
+  // Drawing interaction state
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
-  const colors = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6"];
 
   const getViewportDimensions = () => {
     if (!canvasRef.current) return { width: 800, height: 600 };
     const rect = canvasRef.current.getBoundingClientRect();
-    return { width: rect.width, height: rect.height };
+    return { width: Math.max(100, rect.width), height: Math.max(100, rect.height) };
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -121,7 +130,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
         points: normalizedPoints,
         instruction: "Adjust this sketched region",
         color: selectedColor,
-        strokeWidth: 3,
+        strokeWidth: 2,
         createdAt: now,
       };
 
@@ -153,51 +162,49 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     setCurrentPoints([]);
   };
 
-  const handleUndo = () => {
-    if (history.length === 0) return;
-    const prev = history[history.length - 1];
-    setHistory(history.slice(0, -1));
-    setAnnotations(prev);
-  };
+  const handleUndo = useCallback(() => {
+    if (history.length > 0) {
+      const previous = history[history.length - 1];
+      setHistory((prev) => prev.slice(0, prev.length - 1));
+      setAnnotations(previous);
+    }
+  }, [history]);
 
-  const handleClear = () => {
-    if (annotations.length === 0) return;
-    setHistory((prev) => [...prev, annotations]);
-    setAnnotations([]);
-  };
+  const handleClear = useCallback(() => {
+    if (annotations.length > 0) {
+      setHistory((prev) => [...prev, annotations]);
+      setAnnotations([]);
+    }
+  }, [annotations]);
 
-  const handleUpdateInstruction = (id: string, text: string) => {
+  const updateAnnotationText = (id: string, text: string) => {
     setAnnotations((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, instruction: text } : a))
+      prev.map((ann) => (ann.id === id ? { ...ann, instruction: text } : ann))
     );
   };
 
-  const handleDeleteAnnotation = (id: string) => {
+  const deleteAnnotation = (id: string) => {
     setHistory((prev) => [...prev, annotations]);
-    setAnnotations((prev) => prev.filter((a) => a.id !== id));
+    setAnnotations((prev) => prev.filter((ann) => ann.id !== id));
   };
 
-  const handleSubmit = () => {
-    const viewport = getViewportDimensions();
-    const finalAnnotations = annotations.length > 0 ? annotations : [
-      {
-        id: `ann_default_${Date.now()}`,
-        type: "rectangle" as const,
-        bounds: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
-        instruction: generalInstruction || "Review general visual presentation",
-        color: "#3B82F6",
-        strokeWidth: 2,
-        createdAt: new Date().toISOString(),
-      }
-    ];
+  const canSubmit = annotations.length > 0 || generalInstruction.trim().length > 0;
 
-    // Extract actual rendered SVG from the canvas DOM if available, otherwise baseline container SVG
+  const handleSubmit = async () => {
+    if (!canSubmit || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    const viewport = getViewportDimensions();
+
+    // Extract actual rendered SVG from the DOM or construct baseline
     const svgEl = canvasRef.current?.querySelector("svg");
     const baseSvg = svgEl
       ? svgEl.outerHTML
-      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(viewport.width)} ${Math.round(viewport.height)}"><rect width="100%" height="100%" fill="#070B14"/></svg>`;
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(viewport.width)} ${Math.round(viewport.height)}"><rect width="100%" height="100%" fill="#FFFFFF"/></svg>`;
 
-    const dual = generateDualCapture(baseSvg, finalAnnotations, {
+    const dual: DualCaptureResult = generateDualCapture(baseSvg, annotations, {
       width: Math.round(viewport.width),
       height: Math.round(viewport.height),
       devicePixelRatio: window.devicePixelRatio || 1,
@@ -205,14 +212,17 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       scrollX: 0,
       scrollY: 0,
     });
-    setDualCapture(dual);
+
+    const activeSessionId = artifact?.sessionId || "sess_active";
+    const activeArtifactId = artifact?.artifactId || "art_active";
+    const activeRevision = artifact?.revision || 1;
 
     const submission: FeedbackSubmission = {
       protocolVersion: "1.0",
       feedbackId: `fb_${Date.now()}`,
-      sessionId: "session_gemini_active",
-      artifactId: "art_solar_system",
-      revision: 1,
+      sessionId: activeSessionId,
+      artifactId: activeArtifactId,
+      revision: activeRevision,
       viewport: {
         width: Math.round(viewport.width),
         height: Math.round(viewport.height),
@@ -221,157 +231,180 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
         scrollX: 0,
         scrollY: 0,
       },
-      annotations: finalAnnotations,
-      generalInstruction: generalInstruction || undefined,
+      annotations,
+      generalInstruction: generalInstruction.trim() || undefined,
       originalScreenshotDataUrl: dual.originalDataUrl,
       annotatedScreenshotDataUrl: dual.annotatedDataUrl,
       idempotencyKey: `idem_${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
 
-    setSubmittedJson(JSON.stringify(submission, null, 2));
-    onSubmitFeedback(submission);
-  };
-
-  const copyJson = () => {
-    if (submittedJson) {
-      navigator.clipboard.writeText(submittedJson);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    try {
+      await onSubmitFeedback(submission);
+    } catch (err: any) {
+      setSubmitError(err.message || "Failed to submit feedback to local service.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl overflow-hidden shadow-2xl">
-      {/* Titlebar */}
-      <WindowControls
-        mode="expanded"
-        state="expanded"
-        clickThrough={false}
-        onToggleExpand={onShrink}
-        onClose={onClose}
-      />
-
-      {/* Editor Body */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Toolbar */}
-        <div className="w-16 flex flex-col items-center py-4 gap-4 bg-slate-900 border-r border-slate-800">
-          <div className="flex flex-col gap-2">
-            <button
-              title="Circle / Highlight"
-              onClick={() => setActiveTool("circle")}
-              className={`p-2.5 rounded-lg transition-all ${
-                activeTool === "circle"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
+    <div className="relative w-full h-full flex flex-col bg-[#FFFFFF] text-[#171717] border border-[#E5E5E5] rounded-[14px] overflow-hidden shadow-2xl select-none">
+      {/* 40px Minimal Titlebar */}
+      <div
+        data-tauri-drag-region
+        onMouseDown={(e) => {
+          if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, textarea")) {
+            tauriBridge.startDragging();
+          }
+        }}
+        className="h-[40px] px-3 flex items-center justify-between border-b border-[#E5E5E5] bg-[#FFFFFF] cursor-move select-none"
+      >
+        <div className="flex items-center gap-2 pointer-events-auto">
+          <button
+            type="button"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            onClick={onShrink}
+            title="Collapse to Mini (⌘+Shift+V)"
+            className="p-1 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <span className="text-xs font-semibold text-[#171717]" data-tauri-drag-region>
+            {artifact?.title || artifact?.entrypoint.split("/").pop() || "VisualLoop Review"}
+          </span>
+          <span className="text-[11px] text-[#737373] font-mono" data-tauri-drag-region>
+            · Revision {artifact?.revision ?? 1}
+          </span>
+          {staleRevisionAvailable && (
+            <div
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-[#9A6700]/10 border border-[#9A6700]/30 text-[11px] font-medium text-[#9A6700]"
             >
-              <Circle className="w-5 h-5" />
-            </button>
-
-            <button
-              title="Rectangle"
-              onClick={() => setActiveTool("rectangle")}
-              className={`p-2.5 rounded-lg transition-all ${
-                activeTool === "rectangle"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              <Square className="w-5 h-5" />
-            </button>
-
-            <button
-              title="Arrow"
-              onClick={() => setActiveTool("arrow")}
-              className={`p-2.5 rounded-lg transition-all ${
-                activeTool === "arrow"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              <ArrowUpRight className="w-5 h-5" />
-            </button>
-
-            <button
-              title="Freehand Sketch"
-              onClick={() => setActiveTool("freehand")}
-              className={`p-2.5 rounded-lg transition-all ${
-                activeTool === "freehand"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              <Pencil className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="w-8 h-[1px] bg-slate-800" />
-
-          {/* Color Selector */}
-          <div className="flex flex-col gap-2">
-            {colors.map((c) => (
-              <button
-                key={c}
-                onClick={() => setSelectedColor(c)}
-                style={{ backgroundColor: c }}
-                className={`w-6 h-6 rounded-full transition-transform ${
-                  selectedColor === c ? "scale-125 ring-2 ring-white ring-offset-2 ring-offset-slate-900" : "opacity-75 hover:opacity-100"
-                }`}
-              />
-            ))}
-          </div>
-
-          <div className="w-8 h-[1px] bg-slate-800 mt-auto" />
-
-          {/* Undo and Clear */}
-          <div className="flex flex-col gap-2">
-            <button
-              title="Undo"
-              onClick={handleUndo}
-              disabled={history.length === 0}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <Undo2 className="w-4 h-4" />
-            </button>
-            <button
-              title="Clear All"
-              onClick={handleClear}
-              disabled={annotations.length === 0}
-              className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+              <AlertCircle className="w-3 h-3" />
+              <span>Revision {staleRevisionAvailable} ready</span>
+              {onAcceptNewRevision && (
+                <button
+                  type="button"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={onAcceptNewRevision}
+                  className="ml-1 underline hover:text-[#171717] cursor-pointer"
+                >
+                  Switch
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Center Canvas with Drawing Overlay */}
-        <div className="flex-1 flex flex-col bg-slate-950 p-4 overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-200">
-                Artifact Canvas (Interactive Drawing)
-              </span>
-              <span className="text-xs text-slate-500">
-                • Click and drag over elements to annotate
-              </span>
-            </div>
-            <div className="text-xs font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-              Normalized Space: [0.0 - 1.0]
-            </div>
-          </div>
+        <div
+          className="flex items-center gap-2 text-xs text-[#737373] pointer-events-auto"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
+          <span className="text-[11px] font-medium text-[#525252]">{agentName}</span>
+          <button
+            type="button"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            onClick={onClose}
+            className="p-1 rounded-[6px] text-[#737373] hover:text-[#C2413B] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
+      {/* Main Workspace Body */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Toolbar (Monochrome & Restrained) */}
+        <div className="w-12 flex flex-col items-center py-3 gap-2 bg-[#FAFAFA] border-r border-[#E5E5E5]">
+          <button
+            type="button"
+            title="Circle / Highlight"
+            onClick={() => setActiveTool("circle")}
+            className={`p-2 rounded-[8px] transition-colors cursor-pointer ${
+              activeTool === "circle"
+                ? "bg-[#171717] text-[#FFFFFF]"
+                : "text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2]"
+            }`}
+          >
+            <Circle className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            title="Rectangle"
+            onClick={() => setActiveTool("rectangle")}
+            className={`p-2 rounded-[8px] transition-colors cursor-pointer ${
+              activeTool === "rectangle"
+                ? "bg-[#171717] text-[#FFFFFF]"
+                : "text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2]"
+            }`}
+          >
+            <Square className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            title="Arrow"
+            onClick={() => setActiveTool("arrow")}
+            className={`p-2 rounded-[8px] transition-colors cursor-pointer ${
+              activeTool === "arrow"
+                ? "bg-[#171717] text-[#FFFFFF]"
+                : "text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2]"
+            }`}
+          >
+            <ArrowUpRight className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            title="Freehand Draw"
+            onClick={() => setActiveTool("freehand")}
+            className={`p-2 rounded-[8px] transition-colors cursor-pointer ${
+              activeTool === "freehand"
+                ? "bg-[#171717] text-[#FFFFFF]"
+                : "text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2]"
+            }`}
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+
+          <div className="w-6 h-[1px] bg-[#E5E5E5] my-1" />
+
+          <button
+            type="button"
+            title="Undo"
+            onClick={handleUndo}
+            disabled={history.length === 0}
+            className="p-2 rounded-[8px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            title="Clear all"
+            onClick={handleClear}
+            disabled={annotations.length === 0}
+            className="p-2 rounded-[8px] text-[#737373] hover:text-[#C2413B] hover:bg-[#F2F2F2] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Center Live Canvas with Annotation Overlay */}
+        <div className="flex-1 relative flex flex-col p-3 bg-[#F5F5F5] overflow-hidden">
           <div
             ref={canvasRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            className="relative flex-1 w-full rounded-xl overflow-hidden border border-slate-800 cursor-crosshair select-none bg-[#070B14]"
+            className="relative flex-1 w-full rounded-[10px] overflow-hidden border border-[#E5E5E5] bg-[#FFFFFF] cursor-crosshair select-none"
           >
-            {/* The base artifact viewer */}
-            <DemoArtifactViewer showSwitcher={false} className="w-full h-full pointer-events-none" />
+            {/* The Live Artifact Viewer */}
+            <ArtifactViewer artifact={artifact} className="w-full h-full pointer-events-none" />
 
-            {/* Render Existing Annotations */}
+            {/* Rendered Existing Annotations Overlay */}
             {canvasRef.current &&
               annotations.map((ann, idx) => {
                 const viewport = getViewportDimensions();
@@ -382,220 +415,161 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                     key={ann.id}
                     style={{
                       position: "absolute",
-                      left: `${denorm.x}px`,
-                      top: `${denorm.y}px`,
-                      width: `${denorm.width}px`,
-                      height: `${denorm.height}px`,
-                      borderColor: ann.color,
-                      borderWidth: `${ann.strokeWidth}px`,
-                      borderRadius: ann.type === "circle" ? "9999px" : "6px",
-                      pointerEvents: "none",
+                      left: denorm.x,
+                      top: denorm.y,
+                      width: denorm.width,
+                      height: denorm.height,
                     }}
-                    className="border-dashed bg-white/5 flex items-start justify-start p-1"
+                    className="pointer-events-none"
                   >
-                    <span
-                      style={{ backgroundColor: ann.color }}
-                      className="text-[10px] font-bold text-white px-1.5 py-0.2 rounded-full shadow-sm"
-                    >
-                      #{idx + 1}
-                    </span>
+                    {ann.type === "circle" ? (
+                      <div className="w-full h-full rounded-full border-2 border-dashed border-[#E14C45] bg-[#E14C45]/5 relative">
+                        <span className="absolute -top-3 -left-3 w-5 h-5 rounded-full bg-[#E14C45] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center shadow-sm">
+                          {idx + 1}
+                        </span>
+                      </div>
+                    ) : ann.type === "rectangle" ? (
+                      <div className="w-full h-full rounded-[6px] border-2 border-dashed border-[#E14C45] bg-[#E14C45]/5 relative">
+                        <span className="absolute -top-3 -left-3 w-5 h-5 rounded-full bg-[#E14C45] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center shadow-sm">
+                          {idx + 1}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full border border-[#E14C45] relative">
+                        <span className="absolute -top-3 -left-3 w-5 h-5 rounded-full bg-[#E14C45] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
 
-            {/* Render In-Progress Active Drawing */}
+            {/* Active Drawing Feedback */}
             {isDrawing && currentRect && (
               <div
                 style={{
                   position: "absolute",
-                  left: `${currentRect.x}px`,
-                  top: `${currentRect.y}px`,
-                  width: `${currentRect.width}px`,
-                  height: `${currentRect.height}px`,
-                  borderColor: selectedColor,
-                  borderRadius: activeTool === "circle" ? "9999px" : "6px",
-                  pointerEvents: "none",
+                  left: currentRect.x,
+                  top: currentRect.y,
+                  width: currentRect.width,
+                  height: currentRect.height,
                 }}
-                className="border-2 border-dashed bg-white/10"
+                className={`border-2 border-[#E14C45] bg-[#E14C45]/10 pointer-events-none ${
+                  activeTool === "circle" ? "rounded-full" : "rounded-[6px]"
+                }`}
               />
-            )}
-
-            {/* In-progress freehand points */}
-            {isDrawing && currentPoints.length > 1 && (
-              <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                <polyline
-                  points={currentPoints.map((p) => `${p.x},${p.y}`).join(" ")}
-                  fill="none"
-                  stroke={selectedColor}
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
             )}
           </div>
         </div>
 
-        {/* Right Sidebar: Instructions & Submission */}
-        <div className="w-80 flex flex-col bg-slate-900 border-l border-slate-800 p-4 overflow-y-auto">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-            <h3 className="text-sm font-semibold text-slate-100">
-              Structured Feedback
-            </h3>
-            <span className="text-xs font-mono text-blue-400 bg-blue-950/60 border border-blue-800 px-2 py-0.5 rounded">
-              {annotations.length} marked
-            </span>
+        {/* Right Inspector Sidebar (280px) */}
+        <div className="w-72 flex flex-col bg-[#FAFAFA] border-l border-[#E5E5E5] p-3 overflow-y-auto">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-[#171717] tracking-tight">Review</span>
+            <span className="text-[11px] text-[#737373]">{annotations.length} marked</span>
           </div>
 
-          {/* Annotation items list */}
-          <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          {/* Annotations List */}
+          <div className="flex-1 space-y-2 overflow-y-auto mb-3">
             {annotations.length === 0 ? (
-              <div className="p-4 text-center rounded-lg border border-dashed border-slate-800 text-slate-500 text-xs">
-                <Info className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                Select a tool on the left and draw a circle or box around the region you want changed.
+              <div className="p-3 text-center border border-dashed border-[#E5E5E5] rounded-[8px] text-[11px] text-[#737373]">
+                Circle or draw on the canvas to add specific visual corrections.
               </div>
             ) : (
               annotations.map((ann, idx) => (
                 <div
                   key={ann.id}
-                  className="p-2.5 rounded-lg bg-slate-800/80 border border-slate-700/60 flex flex-col gap-2"
+                  className="p-2.5 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] space-y-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        style={{ backgroundColor: ann.color }}
-                        className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-full"
-                      >
-                        #{idx + 1}
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-[#E14C45] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center">
+                        {idx + 1}
                       </span>
-                      <span className="text-xs font-medium uppercase text-slate-300">
+                      <span className="text-[11px] font-medium text-[#171717] capitalize">
                         {ann.type}
                       </span>
                     </div>
                     <button
-                      onClick={() => handleDeleteAnnotation(ann.id)}
-                      className="text-slate-500 hover:text-red-400 p-0.5"
+                      type="button"
+                      onClick={() => deleteAnnotation(ann.id)}
+                      className="text-[#A3A3A3] hover:text-[#C2413B] text-[10px] cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
                     </button>
                   </div>
-
-                  <div className="text-[10px] font-mono text-slate-400">
-                    x:{ann.bounds.x.toFixed(2)} y:{ann.bounds.y.toFixed(2)} w:{ann.bounds.width.toFixed(2)} h:{ann.bounds.height.toFixed(2)}
-                  </div>
-
-                  <textarea
-                    rows={2}
-                    placeholder="Enter instructions for this area..."
+                  <input
+                    type="text"
                     value={ann.instruction}
-                    onChange={(e) => handleUpdateInstruction(ann.id, e.target.value)}
-                    className="w-full text-xs p-1.5 rounded bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+                    onChange={(e) => updateAnnotationText(ann.id, e.target.value)}
+                    placeholder="Describe what needs to change..."
+                    className="w-full px-2 py-1 bg-[#FAFAFA] border border-[#E5E5E5] rounded-[6px] text-xs text-[#171717] focus:outline-none focus:ring-1 focus:ring-[#171717]"
                   />
                 </div>
               ))
             )}
+          </div>
 
-            <div className="pt-2">
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                General Instructions (Optional)
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Overall direction for agent revision..."
-                value={generalInstruction}
-                onChange={(e) => setGeneralInstruction(e.target.value)}
-                className="w-full text-xs p-2 rounded bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
-              />
+          {/* General Instruction Field */}
+          <div className="pt-2 border-t border-[#E5E5E5]">
+            <label className="block text-[11px] font-semibold text-[#525252] mb-1">
+              General Note (optional)
+            </label>
+            <textarea
+              rows={3}
+              value={generalInstruction}
+              onChange={(e) => setGeneralInstruction(e.target.value)}
+              placeholder="E.g., Keep font sizes readable on mobile..."
+              className="w-full p-2 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] text-xs text-[#171717] placeholder:text-[#A3A3A3] focus:outline-none focus:ring-1 focus:ring-[#171717] resize-none"
+            />
+          </div>
+
+          {/* Error Message if submit failed */}
+          {submitError && (
+            <div className="mt-2 p-2 rounded-[6px] bg-[#C2413B]/10 border border-[#C2413B]/20 text-[11px] text-[#C2413B]">
+              {submitError}
             </div>
-          </div>
-
-          {/* Submission Action */}
-          <div className="pt-4 border-t border-slate-800 flex flex-col gap-2">
-            <button
-              onClick={handleSubmit}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Send className="w-4 h-4" />
-              <span>Submit to Agent Session</span>
-            </button>
-
-            <button
-              onClick={onShrink}
-              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
-            >
-              <Minimize2 className="w-3.5 h-3.5" />
-              <span>Return to Mini Window</span>
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* JSON Payload Confirmation Modal */}
-      {submittedJson && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-2xl flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckCircle2 className="w-5 h-5" />
-                <h4 className="font-semibold text-sm text-slate-100">
-                  Feedback Payload Generated
-                </h4>
-              </div>
-              <button
-                onClick={() => setSubmittedJson(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
+      {/* 44px Clean Action Bar */}
+      <div className="h-[44px] px-4 flex items-center justify-between border-t border-[#E5E5E5] bg-[#FFFFFF]">
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={annotations.length === 0 && !generalInstruction}
+          className="text-xs text-[#737373] hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+        >
+          Discard draft
+        </button>
 
-            <div className="flex items-center justify-between text-xs text-slate-300">
-              <span>
-                Validated against <code className="text-blue-400 font-mono">@visualloop/protocol</code> schema
-              </span>
-              {dualCapture && (
-                <span className="text-emerald-400 font-medium">Dual Captures Generated</span>
-              )}
-            </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-[#737373]">
+            {annotations.length} area{annotations.length === 1 ? "" : "s"} selected
+          </span>
 
-            {dualCapture && (
-              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-3">
-                <div
-                  className="w-28 h-20 bg-slate-900 rounded border border-slate-700 overflow-hidden flex items-center justify-center p-1"
-                  dangerouslySetInnerHTML={{ __html: dualCapture.annotatedSvg }}
-                />
-                <div className="flex-1 text-[11px] text-slate-400">
-                  <div className="text-slate-200 font-semibold mb-0.5">Annotated Screenshot Attached</div>
-                  <div>Composite SVG/PNG generated with numbered markers and highlighted regions.</div>
-                </div>
-              </div>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit || isSubmitting}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-[8px] bg-[#171717] hover:bg-[#303030] text-[#FFFFFF] text-xs font-semibold shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Sending...</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5" />
+                <span>Send feedback</span>
+              </>
             )}
-
-            <pre className="text-[11px] font-mono bg-slate-950 p-3 rounded-lg border border-slate-800 overflow-x-auto max-h-48 text-slate-300">
-              {submittedJson}
-            </pre>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={copyJson}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{copied ? "Copied!" : "Copy JSON"}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setSubmittedJson(null);
-                  onShrink();
-                }}
-                className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors"
-              >
-                Done (Back to Mini)
-              </button>
-            </div>
-          </div>
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 };
