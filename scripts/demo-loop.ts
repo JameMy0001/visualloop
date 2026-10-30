@@ -7,8 +7,9 @@ import { generateDualCapture } from "@visualloop/annotation-engine";
 
 async function runVisualLoopGoldenPathDemo() {
   console.log("=================================================");
-  console.log("   VISUALLOOP HONEST GOLDEN-PATH E2E EXECUTION");
-  console.log("   (Verifies: Session -> Publish -> Feedback -> Disk Edit -> Rev 2)");
+  console.log("   VISUALLOOP SCRIPTED ARCHITECTURAL SMOKE TEST");
+  console.log("   (Plumbing verification: Session -> Publish -> Feedback -> Disk Edit -> Rev 2)");
+  console.log("   (Note: Scripted test for fast CI. For live model E2E, run 'pnpm test:gemini-e2e')");
   console.log("=================================================");
 
   const startTime = Date.now();

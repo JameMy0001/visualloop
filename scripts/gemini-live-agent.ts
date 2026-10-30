@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { GeminiCliAdapter } from "@visualloop/adapter-gemini-cli";
+import { GeminiCliAdapter, applyRevisionSafely } from "@visualloop/adapter-gemini-cli";
 
 function countLines(str: string): number {
   return str.split("\n").length;
@@ -101,8 +101,6 @@ async function main() {
 
     if (process.env.GEMINI_API_KEY) {
       console.log("\n[AI Active] Calling Gemini AI Model with annotations and screenshot...");
-      const backupPath = `${targetFilePath}.bak`;
-      const tempPath = `${targetFilePath}.tmp.${Date.now()}`;
 
       try {
         const { revisedCode, modelUsed } = await adapter.generateRevisionWithGemini({
@@ -111,26 +109,31 @@ async function main() {
           model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
         });
 
-        // 1. Create safety backup
-        fs.writeFileSync(backupPath, currentCode, "utf-8");
-        console.log(`  [Safety] Created backup: ${path.basename(backupPath)}`);
+        // Apply revision safely with syntax validation and versioned backups
+        const result = applyRevisionSafely({
+          targetFilePath,
+          revisedCode,
+          revision: currentRevision,
+          workspaceRoot,
+        });
 
-        // 2. Write to staged temp file
-        fs.writeFileSync(tempPath, revisedCode, "utf-8");
+        if (!result.success) {
+          throw new Error(result.error || "Failed to apply model revision safely.");
+        }
 
-        // 3. Diff inspection
-        const oldLines = countLines(currentCode);
-        const newLines = countLines(revisedCode);
-        console.log(
-          `  [Diff] Source lines: ${oldLines} -> ${newLines} (${newLines >= oldLines ? "+" : ""}${newLines - oldLines})`
-        );
+        if (result.linesChanged) {
+          console.log(
+            `  [Diff] Source lines: ${result.linesChanged.oldLines} -> ${result.linesChanged.newLines} (${result.linesChanged.diff >= 0 ? "+" : ""}${result.linesChanged.diff})`
+          );
+        }
+        if (result.backupPath) {
+          console.log(`  [Safety] Versioned backup saved: ${path.basename(result.backupPath)}`);
+        }
 
-        // 4. Atomic swap
-        fs.renameSync(tempPath, targetFilePath);
         currentRevision += 1;
         console.log(`  [OK] Gemini (${modelUsed}) atomically modified ${filename} on disk.`);
 
-        // 5. Publish Revision N+1
+        // Publish Revision N+1
         const nextRev = await adapter.publishArtifact({
           sessionId: session.sessionId,
           artifactId: feedback.artifactId,
@@ -143,20 +146,9 @@ async function main() {
           `  [OK] Published Revision ${currentRevision} to VisualLoop! (Hash: ${(nextRev as any).contentHash?.slice(0, 10)}...)`
         );
         console.log(">>> VisualLoop preview updated automatically! <<<\n");
+        return true; // Acknowledge feedback receipt
       } catch (err: any) {
         console.error("  [FAIL] Error during Gemini AI code generation:", err.message);
-
-        // Clean up temp file if present
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
-        }
-
-        // Automatic rollback from backup if file was corrupted
-        if (fs.existsSync(backupPath)) {
-          fs.copyFileSync(backupPath, targetFilePath);
-          console.log(`  [Rollback] Restored original content from ${path.basename(backupPath)}`);
-        }
-
         throw err; // Let watchFeedback keep it queued for retry
       }
     } else {
@@ -164,7 +156,8 @@ async function main() {
       console.log("--------------------------------------------------");
       console.log(adapter.formatFeedbackPrompt(feedback));
       console.log("--------------------------------------------------");
-      console.log("Notice: Set GEMINI_API_KEY to enable automatic AI code editing.\n");
+      console.log("Notice: GEMINI_API_KEY is not configured. Feedback remains pending in Core Server queue.\n");
+      return false; // Leave pending
     }
   });
 }

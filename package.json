@@ -11,6 +11,7 @@
     "agent:gemini": "tsx scripts/gemini-live-agent.ts",
     "demo": "tsx scripts/demo-loop.ts",
     "demo:golden-path": "tsx scripts/demo-loop.ts",
+    "test:gemini-e2e": "tsx scripts/gemini-live-e2e.ts",
     "build": "pnpm -r --stream build",
     "test": "vitest run",
     "test:watch": "vitest",

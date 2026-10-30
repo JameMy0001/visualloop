@@ -53,3 +53,14 @@ jobs:
 
       - name: Verify Cargo Tauri Build
         run: cd apps/desktop/src-tauri && cargo check
+
+      - name: Run Scripted Golden-Path Smoke Test
+        run: pnpm demo:golden-path
+
+      - name: Verify Core Server CLI Smoke Test
+        run: |
+          pnpm --filter @visualloop/core-server start &
+          SERVER_PID=$!
+          sleep 3
+          curl -f -s http://127.0.0.1:4178/v1/health || exit 1
+          kill $SERVER_PID || true

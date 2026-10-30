@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   AgentAdapter,
@@ -14,9 +15,134 @@ import {
   ArtifactRevisionRecord,
 } from "@visualloop/protocol";
 
+function getLocalAuthToken(): string | undefined {
+  if (process.env.VISUALLOOP_SECRET_TOKEN) return process.env.VISUALLOOP_SECRET_TOKEN;
+  try {
+    const tokenFile = path.join(os.homedir(), ".visualloop", "auth_token");
+    if (fs.existsSync(tokenFile)) {
+      const token = fs.readFileSync(tokenFile, "utf-8").trim();
+      if (token) return token;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
 export interface GeminiAdapterConfig {
   serverUrl?: string;
   secretToken?: string;
+}
+
+export interface SafeRevisionResult {
+  success: boolean;
+  backupPath?: string;
+  linesChanged?: { oldLines: number; newLines: number; diff: number };
+  error?: string;
+}
+
+/**
+ * Validates and atomically replaces an artifact source file with versioned backups
+ * and rollback guarantees on syntax or file system errors.
+ */
+export function applyRevisionSafely(options: {
+  targetFilePath: string;
+  revisedCode: string;
+  revision: number;
+  workspaceRoot?: string;
+}): SafeRevisionResult {
+  const { targetFilePath, revisedCode, revision, workspaceRoot } = options;
+
+  if (workspaceRoot) {
+    const resolvedTarget = path.resolve(targetFilePath);
+    const resolvedRoot = path.resolve(workspaceRoot);
+    if (!resolvedTarget.startsWith(resolvedRoot)) {
+      return {
+        success: false,
+        error: `Target path ${resolvedTarget} escapes workspace ${resolvedRoot}`,
+      };
+    }
+  }
+
+  if (!fs.existsSync(targetFilePath)) {
+    return {
+      success: false,
+      error: `Target file not found at ${targetFilePath}`,
+    };
+  }
+
+  const ext = path.extname(targetFilePath).toLowerCase();
+  const trimmed = revisedCode.trim();
+
+  // Validate syntax
+  if (!trimmed || trimmed.length === 0) {
+    return {
+      success: false,
+      error: "Validation failed: Empty code received",
+    };
+  }
+
+  if (ext === ".svg") {
+    if (!trimmed.includes("<svg") || !trimmed.includes("</svg>")) {
+      return {
+        success: false,
+        error: "Validation failed: SVG is missing <svg>...</svg> root elements",
+      };
+    }
+  }
+
+  const currentCode = fs.readFileSync(targetFilePath, "utf-8");
+
+  // Create versioned backup
+  const backupDir = path.join(path.dirname(targetFilePath), ".visualloop_backups");
+  if (!fs.existsSync(backupDir)) {
+    try {
+      fs.mkdirSync(backupDir, { recursive: true });
+    } catch {
+      // ignore
+    }
+  }
+  const timestamp = Date.now();
+  const filename = path.basename(targetFilePath);
+  const versionedBackupPath = fs.existsSync(backupDir)
+    ? path.join(backupDir, `${filename}.v${revision}.${timestamp}.bak`)
+    : `${targetFilePath}.v${revision}.${timestamp}.bak`;
+  const canonicalBackupPath = `${targetFilePath}.bak`;
+
+  fs.writeFileSync(versionedBackupPath, currentCode, "utf-8");
+  fs.writeFileSync(canonicalBackupPath, currentCode, "utf-8");
+
+  const tempPath = `${targetFilePath}.tmp.${timestamp}`;
+
+  try {
+    fs.writeFileSync(tempPath, revisedCode, "utf-8");
+    fs.renameSync(tempPath, targetFilePath);
+
+    const oldLines = currentCode.split("\n").length;
+    const newLines = revisedCode.split("\n").length;
+
+    return {
+      success: true,
+      backupPath: versionedBackupPath,
+      linesChanged: {
+        oldLines,
+        newLines,
+        diff: newLines - oldLines,
+      },
+    };
+  } catch (err: any) {
+    if (fs.existsSync(tempPath)) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {}
+    }
+    // Restore original if corrupted
+    fs.writeFileSync(targetFilePath, currentCode, "utf-8");
+    return {
+      success: false,
+      error: err.message,
+    };
+  }
 }
 
 export class GeminiCliAdapter extends BaseAgentAdapter implements AgentAdapter {
@@ -29,7 +155,7 @@ export class GeminiCliAdapter extends BaseAgentAdapter implements AgentAdapter {
   constructor(config: GeminiAdapterConfig = {}) {
     super();
     this.serverUrl = config.serverUrl || "http://127.0.0.1:4178";
-    this.secretToken = config.secretToken;
+    this.secretToken = config.secretToken || getLocalAuthToken();
   }
 
   private getHeaders(): Record<string, string> {
@@ -149,10 +275,11 @@ export class GeminiCliAdapter extends BaseAgentAdapter implements AgentAdapter {
   /**
    * Watches for new incoming feedback on the session, processes it in FIFO order,
    * and acknowledges each feedback only after the callback resolves successfully.
+   * If onFeedback returns false (e.g. missing API key), the feedback remains queued.
    */
   public watchFeedback(
     sessionId: string,
-    onFeedback: (feedback: FeedbackSubmission) => Promise<void>,
+    onFeedback: (feedback: FeedbackSubmission) => Promise<boolean | void>,
     pollIntervalMs = 800
   ): () => void {
     let isRunning = true;
@@ -166,11 +293,13 @@ export class GeminiCliAdapter extends BaseAgentAdapter implements AgentAdapter {
           if (this.acknowledgedFeedbackIds.has(item.feedbackId)) continue;
 
           // Process feedback callback first
-          await onFeedback(item);
+          const handled = await onFeedback(item);
 
-          // Acknowledge receipt only after processing succeeds
-          await this.acknowledgeFeedback(item.feedbackId);
-          this.acknowledgedFeedbackIds.add(item.feedbackId);
+          // Acknowledge receipt only after processing succeeds (handled !== false)
+          if (handled !== false) {
+            await this.acknowledgeFeedback(item.feedbackId);
+            this.acknowledgedFeedbackIds.add(item.feedbackId);
+          }
         }
       } catch (err) {
         // Silently continue polling on transient connection hiccups

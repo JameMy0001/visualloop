@@ -1,20 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { ServerEvent, ServerEventSchema } from "@visualloop/protocol";
-
-function isValidOrigin(origin?: string): boolean {
-  if (!origin || origin === "null") return true;
-  if (origin.startsWith("tauri://")) return true;
-  try {
-    const parsed = new URL(origin);
-    return (
-      parsed.hostname === "localhost" ||
-      parsed.hostname === "127.0.0.1" ||
-      parsed.hostname === "::1"
-    );
-  } catch {
-    return false;
-  }
-}
+import { isValidOrigin } from "./security.js";
 
 export class WebSocketManager {
   private wss: WebSocketServer | null = null;

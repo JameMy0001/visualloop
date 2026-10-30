@@ -8,11 +8,13 @@ import {
 import { loadArtifact } from "@visualloop/preview-engine";
 import { CoreStore } from "./store.js";
 import { WebSocketManager } from "./websocket.js";
+import { isValidOrigin, resolveOrCreateAuthToken } from "./security.js";
 
 export interface CoreServerConfig {
   port?: number;
   host?: string;
   secretToken?: string;
+  requireAuth?: boolean;
   storageFilePath?: string | null;
 }
 
@@ -27,7 +29,12 @@ export class CoreServer {
   constructor(config: CoreServerConfig = {}) {
     this.port = config.port ?? 4178;
     this.host = config.host ?? "127.0.0.1";
-    this.secretToken = config.secretToken;
+
+    if (config.requireAuth || config.secretToken) {
+      this.secretToken = config.secretToken || resolveOrCreateAuthToken();
+    } else {
+      this.secretToken = config.secretToken;
+    }
 
     this.fastify = Fastify({
       logger: false,
@@ -55,20 +62,12 @@ export class CoreServer {
         return;
       }
 
-      // Origin check for browser clients
+      // Strict origin validation for browser clients
       const origin = request.headers.origin;
-      if (origin && origin !== "null") {
-        const isTauri =
-          origin.startsWith("tauri://") || origin.startsWith("http://tauri.localhost");
-        const isLocal =
-          origin.includes("localhost") ||
-          origin.includes("127.0.0.1") ||
-          origin.includes("[::1]");
-        if (!isTauri && !isLocal) {
-          return reply
-            .status(403)
-            .send({ error: "Forbidden: Cross-origin request not permitted" });
-        }
+      if (!isValidOrigin(origin)) {
+        return reply
+          .status(403)
+          .send({ error: "Forbidden: Cross-origin request not permitted" });
       }
 
       // Secret token check

@@ -93,3 +93,62 @@ export function createSolidPngBuffer(
 ): Buffer {
   return encodeRgbRaster(width, height, () => [r, g, b]);
 }
+
+/**
+ * Decodes scanline RGB pixel data from an uncompressed or standard PNG buffer
+ * for automated pixel-level verification tests.
+ */
+export function decodePngPixels(pngBuffer: Buffer): {
+  width: number;
+  height: number;
+  getPixel: (x: number, y: number) => [number, number, number];
+} {
+  // Validate 8-byte PNG signature
+  if (
+    pngBuffer[0] !== 137 ||
+    pngBuffer[1] !== 80 ||
+    pngBuffer[2] !== 78 ||
+    pngBuffer[3] !== 71
+  ) {
+    throw new Error("Invalid PNG header");
+  }
+
+  // Find IHDR
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  const idatChunks: Buffer[] = [];
+
+  while (offset < pngBuffer.length) {
+    const chunkLen = pngBuffer.readUInt32BE(offset);
+    const chunkType = pngBuffer.subarray(offset + 4, offset + 8).toString("ascii");
+
+    if (chunkType === "IHDR") {
+      width = pngBuffer.readUInt32BE(offset + 8);
+      height = pngBuffer.readUInt32BE(offset + 12);
+    } else if (chunkType === "IDAT") {
+      idatChunks.push(pngBuffer.subarray(offset + 8, offset + 8 + chunkLen));
+    } else if (chunkType === "IEND") {
+      break;
+    }
+
+    offset += 12 + chunkLen;
+  }
+
+  const compressedIdat = Buffer.concat(idatChunks);
+  const rawData = zlib.inflateSync(compressedIdat);
+  const rowSize = 1 + width * 3;
+
+  return {
+    width,
+    height,
+    getPixel: (x: number, y: number): [number, number, number] => {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return [0, 0, 0];
+      }
+      const rowOffset = y * rowSize;
+      const pxOffset = rowOffset + 1 + x * 3;
+      return [rawData[pxOffset], rawData[pxOffset + 1], rawData[pxOffset + 2]];
+    },
+  };
+}

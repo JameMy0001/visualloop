@@ -106,7 +106,7 @@ export GEMINI_API_KEY="your-api-key"
 pnpm agent:gemini examples/solar-system.svg
 ```
 
-This runner registers a session, publishes the selected file, polls for feedback, and can request a revised file from the Gemini API. **Back up your source file first:** the runner writes the generated replacement directly to disk. Content passed to Gemini is sent to Google's API and may incur usage charges.
+This runner registers a session, publishes the selected file, polls for feedback, and requests a revised file from the Gemini API. The runner safely writes changes with automatic versioned backups (`.visualloop_backups/`) and rollback on validation failure. Content passed to Gemini is sent to Google's API and may incur usage charges.
 
 ## Development and verification
 
