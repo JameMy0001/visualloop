@@ -1,0 +1,23 @@
+{
+  "name": "@visualloop/core-server",
+  "version": "0.1.0",
+  "description": "VisualLoop Core Server: Fastify, WebSocket, SQLite, session & feedback persistence",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@visualloop/protocol": "workspace:*",
+    "fastify": "^5.2.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "@visualloop/adapter-gemini-cli",
+  "version": "0.1.0",
+  "description": "VisualLoop Agent Adapter for Gemini CLI",
+  "dependencies": {
+    "@visualloop/agent-sdk": "workspace:*",
+    "@visualloop/protocol": "workspace:*"
+  }
+}

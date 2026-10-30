@@ -1,0 +1,9 @@
+{
+  "name": "@visualloop/adapter-claude-code",
+  "version": "0.1.0",
+  "description": "VisualLoop Agent Adapter for Claude Code",
+  "dependencies": {
+    "@visualloop/agent-sdk": "workspace:*",
+    "@visualloop/protocol": "workspace:*"
+  }
+}

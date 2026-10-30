@@ -1,0 +1,9 @@
+{
+  "name": "@visualloop/adapter-codex",
+  "version": "0.1.0",
+  "description": "VisualLoop Agent Adapter for OpenAI Codex CLI",
+  "dependencies": {
+    "@visualloop/agent-sdk": "workspace:*",
+    "@visualloop/protocol": "workspace:*"
+  }
+}

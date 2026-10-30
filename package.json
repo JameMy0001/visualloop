@@ -1,0 +1,26 @@
+{
+  "name": "visualloop-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VisualLoop: Local-first visual feedback companion for AI coding agents",
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "dev": "pnpm --filter @visualloop/desktop dev",
+    "dev:web": "pnpm --filter @visualloop/desktop dev:web",
+    "build": "pnpm -r --stream build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r --stream exec tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
