@@ -18,7 +18,7 @@ export function useWindowState() {
   const [clickThrough, setClickThroughState] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("Ready");
 
-  // Load saved preferences on mount (only opacity and position, never lock mouse on mount)
+  // Load saved preferences on mount (only opacity, never lock mouse on mount)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
@@ -29,6 +29,8 @@ export function useWindowState() {
     } catch (e) {
       console.warn("Failed to read stored config", e);
     }
+    // Always guarantee interactive mouse events on startup
+    tauriBridge.setClickThrough(false);
   }, []);
 
   // Save preferences
@@ -51,20 +53,22 @@ export function useWindowState() {
         setState("expanded");
         // Expansion forces full opacity and disengages click-through
         setClickThroughState(false);
+        saveConfig({ clickThrough: false });
         await tauriBridge.setClickThrough(false);
         await tauriBridge.setWindowMode("expanded");
       } else if (newMode === "mini") {
         setState("mini_idle");
         // Always restore interactive mode when returning to mini!
         setClickThroughState(false);
+        saveConfig({ clickThrough: false });
         await tauriBridge.setClickThrough(false);
         await tauriBridge.setWindowMode("mini");
-      } else {
+      } else if (newMode === "hidden") {
         setState("hidden");
-        await tauriBridge.closeWindow();
+        await tauriBridge.setWindowMode("hidden");
       }
     },
-    []
+    [saveConfig]
   );
 
   const toggleExpand = useCallback(() => {
@@ -114,6 +118,22 @@ export function useWindowState() {
       if (unregister) unregister();
     };
   }, [toggleExpand]);
+
+  // Register global hotkey Command+Shift+C or Ctrl+Shift+C to toggle click-through
+  useEffect(() => {
+    let unregister: (() => void) | undefined;
+    tauriBridge
+      .registerGlobalShortcut("CommandOrControl+Shift+C", () => {
+        toggleClickThrough();
+      })
+      .then((cleanup: (() => void) | undefined) => {
+        unregister = cleanup;
+      });
+
+    return () => {
+      if (unregister) unregister();
+    };
+  }, [toggleClickThrough]);
 
   return {
     mode,

@@ -1,4 +1,6 @@
 import { WindowMode } from "@visualloop/protocol";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export interface PlatformInfo {
   os: string;
@@ -30,7 +32,6 @@ class TauriBridge {
   public async getPlatformInfo(): Promise<PlatformInfo> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         return await invoke<PlatformInfo>("get_platform_info");
       } catch (err) {
         console.warn("Failed to invoke get_platform_info, fallback to browser", err);
@@ -47,7 +48,6 @@ class TauriBridge {
   public async getAuthToken(): Promise<string | undefined> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         const token = await invoke<string | null>("get_auth_token");
         if (token && token.trim().length > 0) {
           return token.trim();
@@ -90,7 +90,6 @@ class TauriBridge {
   public async setWindowMode(mode: WindowMode): Promise<void> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         await invoke("set_window_mode", { mode });
         return;
       } catch (err) {
@@ -104,7 +103,6 @@ class TauriBridge {
   public async setClickThrough(enabled: boolean): Promise<void> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         await invoke("set_click_through", { enabled });
         return;
       } catch (err) {
@@ -117,7 +115,6 @@ class TauriBridge {
   public async setAlwaysOnTop(enabled: boolean): Promise<void> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         await invoke("set_always_on_top", { enabled });
         return;
       } catch (err) {
@@ -130,7 +127,6 @@ class TauriBridge {
   public async getWindowBounds(): Promise<WindowBounds> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         return await invoke<WindowBounds>("get_window_bounds");
       } catch (err) {
         console.warn("Tauri invoke get_window_bounds failed", err);
@@ -147,7 +143,6 @@ class TauriBridge {
   public async setWindowPosition(x: number, y: number): Promise<void> {
     if (this.isTauriEnv) {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         await invoke("set_window_position", { x, y });
         return;
       } catch (err) {
@@ -156,21 +151,16 @@ class TauriBridge {
     }
   }
 
-  public async startDragging(): Promise<void> {
+  public startDragging(): void {
     if (this.isTauriEnv) {
       try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        await getCurrentWindow().startDragging();
+        getCurrentWindow().startDragging();
         return;
       } catch (err) {
         console.warn("Tauri getCurrentWindow().startDragging() failed, trying command fallback", err);
-        try {
-          const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("start_dragging");
-          return;
-        } catch (inner) {
+        invoke("start_dragging").catch((inner) => {
           console.warn("Tauri invoke start_dragging failed", inner);
-        }
+        });
       }
     }
   }
@@ -178,13 +168,11 @@ class TauriBridge {
   public async closeWindow(): Promise<void> {
     if (this.isTauriEnv) {
       try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
         await getCurrentWindow().close();
         return;
       } catch (err) {
         console.warn("Tauri getCurrentWindow().close() failed, trying command fallback", err);
         try {
-          const { invoke } = await import("@tauri-apps/api/core");
           await invoke("close_window");
           return;
         } catch (inner) {
@@ -192,7 +180,9 @@ class TauriBridge {
         }
       }
     }
-    window.close();
+    if (typeof window !== "undefined") {
+      window.close();
+    }
   }
 
   public async registerGlobalShortcut(

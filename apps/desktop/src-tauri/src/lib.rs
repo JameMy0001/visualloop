@@ -31,7 +31,11 @@ fn get_platform_info() -> PlatformInfo {
 fn set_click_through(window: Window, enabled: bool) -> Result<(), String> {
     window
         .set_ignore_cursor_events(enabled)
-        .map_err(|e| format!("Failed to set click-through: {}", e))
+        .map_err(|e| format!("Failed to set click-through: {}", e))?;
+    if !enabled {
+        let _ = window.set_focus();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -45,19 +49,21 @@ fn set_always_on_top(window: Window, enabled: bool) -> Result<(), String> {
 fn set_window_mode(window: Window, mode: String) -> Result<(), String> {
     match mode.as_str() {
         "mini" => {
+            // Restore interactive mouse events and bring window to focus
             let _ = window.set_ignore_cursor_events(false);
             let _ = window.set_size(LogicalSize::new(360.0, 240.0));
             let _ = window.set_always_on_top(true);
-            let _ = window.set_resizable(false);
+            let _ = window.show();
             let _ = window.set_focus();
             Ok(())
         }
         "expanded" => {
-            // Expansion disables click-through and centers or expands bounds
+            // Expansion disables click-through, centers bounds, and ensures key focus
             let _ = window.set_ignore_cursor_events(false);
             let _ = window.set_size(LogicalSize::new(1024.0, 768.0));
             let _ = window.center();
-            let _ = window.set_resizable(true);
+            let _ = window.set_always_on_top(true);
+            let _ = window.show();
             let _ = window.set_focus();
             Ok(())
         }

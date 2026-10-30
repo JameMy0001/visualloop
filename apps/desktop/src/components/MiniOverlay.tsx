@@ -58,8 +58,9 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
 
         {/* Click-through notice pill */}
         {clickThrough && (
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#171717]/80 text-[10px] font-medium text-[#FFFFFF] backdrop-blur-sm pointer-events-none">
-            Click-through active (⌘+Shift+V to unlock)
+          <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-[#171717]/90 text-[10px] font-medium text-[#FFFFFF] backdrop-blur-sm pointer-events-none shadow-md flex items-center gap-1.5 border border-[#404040]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#E14C45] animate-pulse" />
+            <span>Click-through active · Press ⌘+Shift+V or ⌘+Shift+C to unlock</span>
           </div>
         )}
 

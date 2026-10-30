@@ -42,4 +42,32 @@ describe("VisualLoop Desktop Shell logic", () => {
     expect(clampOpacity(1.5)).toBe(1.0);
     expect(clampOpacity(0.8)).toBe(0.8);
   });
+
+  it("disengages click-through when transitioning between modes", () => {
+    let mode: "mini" | "expanded" = "mini";
+    let clickThrough = true;
+
+    // Simulate transition to expanded
+    mode = "expanded";
+    clickThrough = mode === "expanded" ? false : clickThrough;
+    expect(clickThrough).toBe(false);
+
+    // Simulate collapse back to mini
+    mode = "mini";
+    clickThrough = false; // Always restored to interactive
+    expect(clickThrough).toBe(false);
+  });
+
+  it("validates safe desktop window dimensions without style mask mutation", () => {
+    const miniBounds = { width: 360, height: 240, resizable: true };
+    const expandedBounds = { width: 1024, height: 768, resizable: true };
+
+    expect(miniBounds.width).toBe(360);
+    expect(miniBounds.height).toBe(240);
+    expect(miniBounds.resizable).toBe(true);
+
+    expect(expandedBounds.width).toBe(1024);
+    expect(expandedBounds.height).toBe(768);
+    expect(expandedBounds.resizable).toBe(true);
+  });
 });

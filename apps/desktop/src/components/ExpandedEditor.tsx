@@ -288,21 +288,25 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     <div className="relative w-full h-full flex flex-col bg-[#FFFFFF] text-[#171717] border border-[#E5E5E5] rounded-[14px] overflow-hidden shadow-2xl select-none">
       {/* 40px Minimal Titlebar */}
       <div
-        data-tauri-drag-region
+        data-tauri-drag-region="deep"
         onMouseDown={(e) => {
-          if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, textarea")) {
+          if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, textarea, [data-no-drag]")) {
             tauriBridge.startDragging();
           }
         }}
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         className="h-[40px] px-3 flex items-center justify-between border-b border-[#E5E5E5] bg-[#FFFFFF] cursor-move select-none"
       >
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div data-tauri-drag-region className="flex items-center gap-2 cursor-move pointer-events-none">
           <button
             type="button"
+            data-no-drag
+            data-tauri-drag-region="false"
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             onClick={onShrink}
             title="Collapse to Mini (⌘+Shift+V)"
-            className="p-1 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+            className="p-1 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer pointer-events-auto"
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -314,17 +318,23 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           </span>
           {staleRevisionAvailable && (
             <div
+              data-no-drag
+              data-tauri-drag-region="false"
               style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-              className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-[#9A6700]/10 border border-[#9A6700]/30 text-[11px] font-medium text-[#9A6700]"
+              className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-[#9A6700]/10 border border-[#9A6700]/30 text-[11px] font-medium text-[#9A6700] pointer-events-auto"
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <AlertCircle className="w-3 h-3" />
               <span>Revision {staleRevisionAvailable} ready</span>
               {onAcceptNewRevision && (
                 <button
                   type="button"
+                  data-no-drag
+                  data-tauri-drag-region="false"
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                   onClick={onAcceptNewRevision}
                   className="ml-1 underline hover:text-[#171717] cursor-pointer"
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   Switch
                 </button>
@@ -334,15 +344,22 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
         </div>
 
         <div
+          data-no-drag
+          data-tauri-drag-region="false"
           className="flex items-center gap-2 text-xs text-[#737373] pointer-events-auto"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <span className="text-[11px] font-medium text-[#525252]">{agentName}</span>
           <button
             type="button"
+            data-no-drag
+            data-tauri-drag-region="false"
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             onClick={onClose}
+            title="Close Window"
             className="p-1 rounded-[6px] text-[#737373] hover:text-[#C2413B] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <X className="w-4 h-4" />
           </button>

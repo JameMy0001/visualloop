@@ -71,7 +71,6 @@ export const App: React.FC = () => {
   };
 
   const handleClose = async () => {
-    setMode("hidden");
     await tauriBridge.closeWindow();
   };
 
