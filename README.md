@@ -154,8 +154,8 @@ pnpm test
 ## Implementation Roadmap
 
 - [x] **Phase 1 — Desktop prototype:** Tauri 2 + React + Vite, mini overlay, expanded editor, hotkeys, demo artifact, protocol package.
-- [ ] **Phase 2 — Preview renderer:** Playwright screenshot worker, secure sandboxed iframe, untrusted HTML containment.
-- [ ] **Phase 3 — Annotation workspace:** Full Konva multi-layer annotation engine, high-resolution original/annotated captures.
-- [ ] **Phase 4 — Core protocol and state:** Fastify localhost API, WebSocket broadcast, SQLite session/revision store.
-- [ ] **Phase 5 — Real agent integration:** Gemini CLI adapter implementation, feedback polling/hook delivery.
+- [x] **Phase 2 — Preview renderer:** Safe path validation, SVG XSS sanitization, strict CSP sandbox for HTML/CSS, dual demo switcher.
+- [ ] **Phase 3 — Annotation workspace:** Full Konva multi-layer annotation engine, dual screenshot capture (original + marked up).
+- [x] **Phase 4 — Core protocol and state:** Fastify localhost API (`127.0.0.1:4178`), WebSocket event bus, session/artifact/revision/feedback store.
+- [x] **Phase 5 — Real agent integration:** Gemini CLI adapter implementation, prompt formatting, fallback file writing (`visualloop-feedback.json`).
 - [ ] **Phase 6 — OSS release:** Packaging, CI builds, signed installers (macOS, Linux, Windows).

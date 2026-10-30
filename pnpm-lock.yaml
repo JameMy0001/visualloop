@@ -127,6 +127,13 @@ importers:
       '@visualloop/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
 
   adapters/codex:
     dependencies:
@@ -136,6 +143,13 @@ importers:
       '@visualloop/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
 
   adapters/gemini-cli:
     dependencies:
@@ -145,6 +159,16 @@ importers:
       '@visualloop/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9
 
   apps/desktop:
     dependencies:
@@ -154,6 +178,9 @@ importers:
       '@tauri-apps/plugin-global-shortcut':
         specifier: ^2.4.1
         version: 2.4.1
+      '@visualloop/preview-engine':
+        specifier: workspace:*
+        version: link:../../packages/preview-engine
       '@visualloop/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -226,6 +253,9 @@ importers:
 
   packages/core-server:
     dependencies:
+      '@visualloop/preview-engine':
+        specifier: workspace:*
+        version: link:../preview-engine
       '@visualloop/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -239,6 +269,9 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.2
@@ -255,6 +288,9 @@ importers:
         specifier: workspace:*
         version: link:../protocol
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

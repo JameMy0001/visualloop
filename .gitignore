@@ -10,3 +10,4 @@ target
 coverage
 .cache
 captures/
+visualloop-feedback.json

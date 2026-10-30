@@ -1,9 +1,23 @@
 {
   "name": "@visualloop/preview-engine",
   "version": "0.1.0",
-  "description": "VisualLoop Preview Engine: Renderers and sandboxed screenshot worker",
+  "type": "module",
+  "description": "VisualLoop Preview Engine: Renderers, safe path validation, sandboxing and screenshot worker",
   "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./sanitizer": {
+      "types": "./dist/sanitizer.d.ts",
+      "import": "./dist/sanitizer.js",
+      "default": "./dist/sanitizer.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
@@ -12,6 +26,7 @@
     "@visualloop/protocol": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

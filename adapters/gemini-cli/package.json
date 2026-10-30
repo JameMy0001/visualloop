@@ -1,9 +1,21 @@
 {
   "name": "@visualloop/adapter-gemini-cli",
   "version": "0.1.0",
+  "type": "module",
   "description": "VisualLoop Agent Adapter for Gemini CLI",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@visualloop/agent-sdk": "workspace:*",
     "@visualloop/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

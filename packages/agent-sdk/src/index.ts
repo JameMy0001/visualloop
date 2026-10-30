@@ -5,12 +5,13 @@ import {
   FeedbackSubmission,
   DeliveryReceipt,
   AgentCapabilities,
+  ArtifactRevisionRecord,
 } from "@visualloop/protocol";
 
 export interface AgentAdapter {
   id: string;
   registerSession(input: SessionRegistration): Promise<SessionHandle>;
-  publishArtifact(input: ArtifactPublication): Promise<void>;
+  publishArtifact(input: ArtifactPublication): Promise<ArtifactRevisionRecord | void>;
   deliverFeedback(input: FeedbackSubmission): Promise<DeliveryReceipt>;
   getCapabilities(): Promise<AgentCapabilities>;
 }
@@ -18,7 +19,7 @@ export interface AgentAdapter {
 export abstract class BaseAgentAdapter implements AgentAdapter {
   abstract id: string;
   abstract registerSession(input: SessionRegistration): Promise<SessionHandle>;
-  abstract publishArtifact(input: ArtifactPublication): Promise<void>;
+  abstract publishArtifact(input: ArtifactPublication): Promise<ArtifactRevisionRecord | void>;
   abstract deliverFeedback(input: FeedbackSubmission): Promise<DeliveryReceipt>;
   abstract getCapabilities(): Promise<AgentCapabilities>;
 }
