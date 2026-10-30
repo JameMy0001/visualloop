@@ -113,6 +113,45 @@ class TauriBridge {
     }
   }
 
+  public async startDragging(): Promise<void> {
+    if (this.isTauriEnv) {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().startDragging();
+        return;
+      } catch (err) {
+        console.warn("Tauri getCurrentWindow().startDragging() failed, trying command fallback", err);
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("start_dragging");
+          return;
+        } catch (inner) {
+          console.warn("Tauri invoke start_dragging failed", inner);
+        }
+      }
+    }
+  }
+
+  public async closeWindow(): Promise<void> {
+    if (this.isTauriEnv) {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().close();
+        return;
+      } catch (err) {
+        console.warn("Tauri getCurrentWindow().close() failed, trying command fallback", err);
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("close_window");
+          return;
+        } catch (inner) {
+          console.warn("Tauri invoke close_window failed", inner);
+        }
+      }
+    }
+    window.close();
+  }
+
   public async registerGlobalShortcut(
     shortcut: string,
     handler: () => void

@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { FeedbackSubmission } from "@visualloop/protocol";
+import { tauriBridge } from "./services/tauriBridge";
 import { useWindowState } from "./hooks/useWindowState";
 import { MiniOverlay } from "./components/MiniOverlay";
 import { ExpandedEditor } from "./components/ExpandedEditor";
@@ -45,8 +46,9 @@ export const App: React.FC = () => {
     }, 600);
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     setMode("hidden");
+    await tauriBridge.closeWindow();
   };
 
   return (

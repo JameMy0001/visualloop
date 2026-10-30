@@ -45,9 +45,11 @@ fn set_always_on_top(window: Window, enabled: bool) -> Result<(), String> {
 fn set_window_mode(window: Window, mode: String) -> Result<(), String> {
     match mode.as_str() {
         "mini" => {
+            let _ = window.set_ignore_cursor_events(false);
             let _ = window.set_size(LogicalSize::new(360.0, 240.0));
             let _ = window.set_always_on_top(true);
             let _ = window.set_resizable(false);
+            let _ = window.set_focus();
             Ok(())
         }
         "expanded" => {
@@ -91,6 +93,16 @@ fn set_window_position(window: Window, x: f64, y: f64) -> Result<(), String> {
         .map_err(|e| format!("Failed to set position: {}", e))
 }
 
+#[tauri::command]
+fn start_dragging(window: Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn close_window(window: Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -101,7 +113,9 @@ pub fn run() {
             set_always_on_top,
             set_window_mode,
             get_window_bounds,
-            set_window_position
+            set_window_position,
+            start_dragging,
+            close_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running VisualLoop application");

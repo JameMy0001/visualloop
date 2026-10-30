@@ -1,6 +1,7 @@
 import React from "react";
-import { Maximize2, Minimize2, X, MousePointer, ShieldAlert } from "lucide-react";
+import { Maximize2, Minimize2, X, MousePointer, GripVertical } from "lucide-react";
 import { WindowMode, WindowState } from "@visualloop/protocol";
+import { tauriBridge } from "../services/tauriBridge";
 
 interface WindowControlsProps {
   mode: WindowMode;
@@ -55,14 +56,22 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
     }
   };
 
+  const handleHeaderMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, textarea")) {
+      tauriBridge.startDragging();
+    }
+  };
+
   return (
     <div
       data-tauri-drag-region
-      className={`flex items-center justify-between px-3 py-1.5 select-none bg-slate-900/90 border-b border-white/10 ${
+      onMouseDown={handleHeaderMouseDown}
+      className={`flex items-center justify-between px-3 py-1.5 select-none bg-slate-900/95 border-b border-white/10 cursor-move ${
         isMini ? "h-8" : "h-10"
       }`}
     >
-      <div className="flex items-center gap-2 pointer-events-none">
+      <div className="flex items-center gap-1.5 pointer-events-none">
+        <GripVertical className="w-3.5 h-3.5 text-slate-500 mr-0.5" />
         <span className={`w-2 h-2 rounded-full ${getStatusColor()} animate-pulse`} />
         <span className="text-xs font-semibold tracking-wide text-slate-200">
           VisualLoop
@@ -72,14 +81,21 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         </span>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div
+        className="flex items-center gap-1 pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {isMini && onToggleClickThrough && (
           <button
-            title={clickThrough ? "Click-through: Enabled" : "Click-through: Disabled"}
-            onClick={onToggleClickThrough}
-            className={`p-1 rounded text-xs transition-colors ${
+            type="button"
+            title={clickThrough ? "Click-through: Active (Click to disable)" : "Enable Click-through"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleClickThrough();
+            }}
+            className={`p-1 rounded text-xs transition-colors cursor-pointer ${
               clickThrough
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                ? "bg-amber-500/25 text-amber-300 border border-amber-500/40"
                 : "text-slate-400 hover:text-white hover:bg-slate-800"
             }`}
           >
@@ -88,17 +104,25 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         )}
 
         <button
+          type="button"
           title={isMini ? "Expand (Cmd+Shift+V)" : "Shrink to Mini"}
-          onClick={onToggleExpand}
-          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
         >
           {isMini ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
         </button>
 
         <button
-          title="Close"
-          onClick={onClose}
-          className="p-1 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-colors"
+          type="button"
+          title="Close Window"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="p-1 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
         >
           <X className="w-3.5 h-3.5" />
         </button>

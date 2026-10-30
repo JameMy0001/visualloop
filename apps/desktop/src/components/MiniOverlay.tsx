@@ -44,12 +44,12 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
 
       {/* Artifact Preview Area */}
       <div className="relative flex-1 w-full h-[calc(100%-2rem)] p-1.5 overflow-hidden">
-        <DemoArtifactViewer className="rounded-lg border border-slate-800/80" />
+        <DemoArtifactViewer showSwitcher={false} className="rounded-lg border border-slate-800/80" />
 
         {/* Click-through notice badge */}
         {clickThrough && (
           <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-[10px] font-medium text-amber-300 backdrop-blur-sm pointer-events-none">
-            Click-through Active (Use Cmd+Shift+V)
+            Click-through Active (Press ⌘+Shift+V to unlock)
           </div>
         )}
 

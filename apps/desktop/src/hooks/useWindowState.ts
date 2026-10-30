@@ -13,18 +13,18 @@ interface StoredConfig {
 export function useWindowState() {
   const [mode, setModeState] = useState<WindowMode>("mini");
   const [state, setState] = useState<WindowState>("mini_idle");
-  const [opacity, setOpacityState] = useState<number>(0.8);
+  const [opacity, setOpacityState] = useState<number>(0.85);
+  // Default to false so the window is always interactive and draggable
   const [clickThrough, setClickThroughState] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("Ready");
 
-  // Load saved preferences on mount
+  // Load saved preferences on mount (only opacity and position, never lock mouse on mount)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (raw) {
         const parsed: StoredConfig = JSON.parse(raw);
         if (typeof parsed.opacity === "number") setOpacityState(parsed.opacity);
-        if (typeof parsed.clickThrough === "boolean") setClickThroughState(parsed.clickThrough);
       }
     } catch (e) {
       console.warn("Failed to read stored config", e);
@@ -35,7 +35,7 @@ export function useWindowState() {
   const saveConfig = useCallback((updates: Partial<StoredConfig>) => {
     try {
       const current = localStorage.getItem(STORAGE_KEY_CONFIG);
-      const parsed: StoredConfig = current ? JSON.parse(current) : { opacity: 0.8, clickThrough: false };
+      const parsed: StoredConfig = current ? JSON.parse(current) : { opacity: 0.85, clickThrough: false };
       const next = { ...parsed, ...updates };
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(next));
     } catch (e) {
@@ -49,20 +49,22 @@ export function useWindowState() {
       setModeState(newMode);
       if (newMode === "expanded") {
         setState("expanded");
-        // Expansion forces full opacity and disables click-through
+        // Expansion forces full opacity and disengages click-through
+        setClickThroughState(false);
         await tauriBridge.setClickThrough(false);
         await tauriBridge.setWindowMode("expanded");
       } else if (newMode === "mini") {
         setState("mini_idle");
-        // Restore mini click-through and opacity
-        await tauriBridge.setClickThrough(clickThrough);
+        // Always restore interactive mode when returning to mini!
+        setClickThroughState(false);
+        await tauriBridge.setClickThrough(false);
         await tauriBridge.setWindowMode("mini");
       } else {
         setState("hidden");
-        await tauriBridge.setWindowMode("hidden");
+        await tauriBridge.closeWindow();
       }
     },
-    [clickThrough]
+    []
   );
 
   const toggleExpand = useCallback(() => {

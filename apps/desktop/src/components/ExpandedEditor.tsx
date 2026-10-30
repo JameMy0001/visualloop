@@ -365,7 +365,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
             className="relative flex-1 w-full rounded-xl overflow-hidden border border-slate-800 cursor-crosshair select-none bg-[#070B14]"
           >
             {/* The base artifact viewer */}
-            <DemoArtifactViewer className="w-full h-full pointer-events-none" />
+            <DemoArtifactViewer showSwitcher={false} className="w-full h-full pointer-events-none" />
 
             {/* Render Existing Annotations */}
             {canvasRef.current &&

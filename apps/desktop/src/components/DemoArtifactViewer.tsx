@@ -5,6 +5,7 @@ interface DemoArtifactViewerProps {
   className?: string;
   onDimensionsReady?: (dims: { width: number; height: number }) => void;
   defaultArtifact?: "svg" | "html";
+  showSwitcher?: boolean;
 }
 
 const SOLAR_SYSTEM_SVG = `<svg viewBox="0 0 1200 800" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -169,6 +170,7 @@ export const DemoArtifactViewer: React.FC<DemoArtifactViewerProps> = ({
   className = "",
   onDimensionsReady,
   defaultArtifact = "svg",
+  showSwitcher = true,
 }) => {
   const [activeArtifact, setActiveArtifact] = useState<"svg" | "html">(defaultArtifact);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -189,28 +191,30 @@ export const DemoArtifactViewer: React.FC<DemoArtifactViewerProps> = ({
       className={`relative w-full h-full flex flex-col items-center justify-center overflow-hidden bg-[#070B14] rounded-lg ${className}`}
     >
       {/* Switcher tabs */}
-      <div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700/80 backdrop-blur-sm pointer-events-auto">
-        <button
-          onClick={() => setActiveArtifact("svg")}
-          className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
-            activeArtifact === "svg"
-              ? "bg-blue-600 text-white"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          SVG Demo
-        </button>
-        <button
-          onClick={() => setActiveArtifact("html")}
-          className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
-            activeArtifact === "html"
-              ? "bg-blue-600 text-white"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          HTML Sandbox
-        </button>
-      </div>
+      {showSwitcher && (
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700/80 backdrop-blur-sm pointer-events-auto">
+          <button
+            onClick={() => setActiveArtifact("svg")}
+            className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
+              activeArtifact === "svg"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            SVG Demo
+          </button>
+          <button
+            onClick={() => setActiveArtifact("html")}
+            className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
+              activeArtifact === "html"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            HTML Sandbox
+          </button>
+        </div>
+      )}
 
       {activeArtifact === "svg" ? (
         <div
