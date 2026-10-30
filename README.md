@@ -107,18 +107,30 @@ pnpm build
 
 ### Running the Application
 
-#### Option A: Web Simulation Mode (Instant, No Rust Compilation)
+#### Option A: One-Command Full Desktop Stack (Recommended)
+```bash
+# Starts VisualLoop Core Server on port 4178 and launches the Tauri Desktop window
+pnpm start
+```
+
+#### Option B: Live Gemini AI Companion Runner
+```bash
+# Set your Gemini API key for real automated code edits
+export GEMINI_API_KEY="your-google-gemini-api-key"
+
+# Launches the Gemini companion agent to watch an artifact and apply circled revisions
+pnpm agent:gemini examples/solar-system.svg
+```
+
+#### Option C: Web Simulation Mode (Instant, No Rust Compilation)
 ```bash
 pnpm dev:web
 ```
 Opens Vite at `http://localhost:5173`. Simulates both the mini floating window and the expanded annotation editor in-browser.
 
-#### Option B: Native Tauri 2 Desktop Shell
+#### Option D: Standalone Desktop Window
 ```bash
-# Ensure Rust is in PATH
 export PATH="$HOME/.cargo/bin:$PATH"
-
-# Run Tauri development desktop window
 pnpm dev
 ```
 

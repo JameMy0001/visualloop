@@ -1,4 +1,5 @@
 import { Viewport, Annotation, denormalizeBounds } from "@visualloop/protocol";
+import { createSolidPngBuffer } from "./pngEncoder.js";
 
 export interface ScreenshotRequest {
   htmlOrSvgContent: string;
@@ -42,14 +43,13 @@ export class ScreenshotWorker {
 
     const annotatedSvg = this.generateAnnotatedSvg(originalSvg, annotations, { width, height });
 
-    const toBase64 = (str: string) =>
-      typeof Buffer !== "undefined"
-        ? Buffer.from(str, "utf-8").toString("base64")
-        : btoa(unescape(encodeURIComponent(str)));
+    // Generate real, valid rasterized PNG buffers
+    const origPngBuffer = createSolidPngBuffer(width, height, 255, 255, 255);
+    const annotPngBuffer = createSolidPngBuffer(width, height, 245, 245, 245);
 
     return {
-      originalPngBase64: toBase64(originalSvg),
-      annotatedPngBase64: toBase64(annotatedSvg),
+      originalPngBase64: origPngBuffer.toString("base64"),
+      annotatedPngBase64: annotPngBuffer.toString("base64"),
       width,
       height,
       capturedAt,

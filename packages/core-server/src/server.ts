@@ -186,13 +186,25 @@ export class CoreServer {
       }
     });
 
+    this.fastify.get("/v1/feedback/pending", async (request, reply) => {
+      const { sessionId } = request.query as { sessionId?: string };
+      if (!sessionId) {
+        return reply.status(400).send({ error: "sessionId query parameter required" });
+      }
+
+      const pending = this.store.getPendingFeedback(sessionId);
+      return reply.send({ sessionId, pending, count: pending.length });
+    });
+
     this.fastify.get("/v1/feedback/latest", async (request, reply) => {
       const { sessionId } = request.query as { sessionId?: string };
       if (!sessionId) {
         return reply.status(400).send({ error: "sessionId query parameter required" });
       }
 
-      const feedback = this.store.getLatestFeedback(sessionId);
+      // Return next pending in queue, or latest recorded feedback
+      const feedback =
+        this.store.getNextPendingFeedback(sessionId) || this.store.getLatestFeedback(sessionId);
       if (!feedback) {
         return reply.status(404).send({ error: "No feedback found for session" });
       }

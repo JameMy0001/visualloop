@@ -109,6 +109,60 @@ export function svgToDataUrl(svgString: string): string {
 }
 
 /**
+ * Asynchronously rasterizes an SVG string to a genuine PNG Data URL
+ * in WebKit / browser environments using Canvas, with fallback to SVG data URL in headless test environments.
+ */
+export async function rasterizeSvgToPngDataUrl(
+  svgString: string,
+  width: number,
+  height: number
+): Promise<string> {
+  if (
+    typeof window !== "undefined" &&
+    typeof document !== "undefined" &&
+    typeof Image !== "undefined"
+  ) {
+    return new Promise((resolve) => {
+      try {
+        const img = new Image();
+        const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(svgBlob);
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(width));
+            canvas.height = Math.max(1, Math.round(height));
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.fillStyle = "#FFFFFF";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const pngDataUrl = canvas.toDataURL("image/png");
+              URL.revokeObjectURL(url);
+              resolve(pngDataUrl);
+              return;
+            }
+          } catch (e) {
+            // fallback
+          }
+          URL.revokeObjectURL(url);
+          resolve(svgToDataUrl(svgString));
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(svgToDataUrl(svgString));
+        };
+        img.src = url;
+      } catch (err) {
+        resolve(svgToDataUrl(svgString));
+      }
+    });
+  }
+
+  return svgToDataUrl(svgString);
+}
+
+/**
  * Generates both original and annotated capture representations.
  */
 export function generateDualCapture(

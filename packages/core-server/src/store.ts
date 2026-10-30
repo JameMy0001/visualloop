@@ -246,6 +246,17 @@ export class CoreStore {
     return this.feedback.get(feedbackId);
   }
 
+  public getPendingFeedback(sessionId: string): FeedbackSubmission[] {
+    return Array.from(this.feedback.values()).filter(
+      (f) => f.sessionId === sessionId && this.feedbackStatus.get(f.feedbackId) === "queued"
+    );
+  }
+
+  public getNextPendingFeedback(sessionId: string): FeedbackSubmission | undefined {
+    const pending = this.getPendingFeedback(sessionId);
+    return pending.length > 0 ? pending[0] : undefined;
+  }
+
   public getLatestFeedback(sessionId: string): FeedbackSubmission | undefined {
     const sessionFeedback = Array.from(this.feedback.values()).filter(
       (f) => f.sessionId === sessionId

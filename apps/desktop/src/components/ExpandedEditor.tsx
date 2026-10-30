@@ -20,7 +20,11 @@ import {
   denormalizeBounds,
   normalizePoint,
 } from "@visualloop/protocol";
-import { generateDualCapture, DualCaptureResult } from "@visualloop/annotation-engine";
+import {
+  generateDualCapture,
+  DualCaptureResult,
+  rasterizeSvgToPngDataUrl,
+} from "@visualloop/annotation-engine";
 import { ArtifactViewer } from "./ArtifactViewer";
 import { ActiveArtifactInfo } from "../services/coreClient";
 import { FeedbackUIStatus } from "../state/useVisualLoopStore";
@@ -213,6 +217,23 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       scrollY: 0,
     });
 
+    const vpWidth = Math.round(viewport.width);
+    const vpHeight = Math.round(viewport.height);
+
+    let originalScreenshotDataUrl = dual.originalDataUrl;
+    let annotatedScreenshotDataUrl = dual.annotatedDataUrl;
+
+    try {
+      const [origPng, annotPng] = await Promise.all([
+        rasterizeSvgToPngDataUrl(baseSvg, vpWidth, vpHeight),
+        rasterizeSvgToPngDataUrl(dual.annotatedSvg, vpWidth, vpHeight),
+      ]);
+      originalScreenshotDataUrl = origPng;
+      annotatedScreenshotDataUrl = annotPng;
+    } catch (e) {
+      console.warn("PNG rasterization fallback to SVG data URL", e);
+    }
+
     const activeSessionId = artifact?.sessionId || "sess_active";
     const activeArtifactId = artifact?.artifactId || "art_active";
     const activeRevision = artifact?.revision || 1;
@@ -224,8 +245,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       artifactId: activeArtifactId,
       revision: activeRevision,
       viewport: {
-        width: Math.round(viewport.width),
-        height: Math.round(viewport.height),
+        width: vpWidth,
+        height: vpHeight,
         devicePixelRatio: window.devicePixelRatio || 1,
         zoom: 1,
         scrollX: 0,
@@ -233,8 +254,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       },
       annotations,
       generalInstruction: generalInstruction.trim() || undefined,
-      originalScreenshotDataUrl: dual.originalDataUrl,
-      annotatedScreenshotDataUrl: dual.annotatedDataUrl,
+      originalScreenshotDataUrl,
+      annotatedScreenshotDataUrl,
       idempotencyKey: `idem_${Date.now()}`,
       createdAt: new Date().toISOString(),
     };

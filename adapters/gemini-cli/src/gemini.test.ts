@@ -100,7 +100,24 @@ describe("Gemini CLI Adapter Integration & Prompt Generation", () => {
 
     expect(receipt.status).toBe("delivered");
 
-    // 4. Publish Revision 2
+    // 4. Test FIFO Queue and Pending Feedback
+    const pendingList = await adapter.getPendingFeedback(session.sessionId);
+    expect(pendingList.length).toBeGreaterThanOrEqual(1);
+    expect(pendingList[0].feedbackId).toBe("fb_gemini_deliv");
+
+    // 5. Test Acknowledgement
+    const ackReceipt = await adapter.acknowledgeFeedback("fb_gemini_deliv");
+    expect(ackReceipt.status).toBe("acknowledged");
+
+    // 6. Test Gemini AI Generation Key Guard
+    await expect(
+      adapter.generateRevisionWithGemini({
+        sourceCode: "<svg></svg>",
+        feedback: pendingList[0],
+      })
+    ).rejects.toThrow("GEMINI_API_KEY");
+
+    // 7. Publish Revision 2
     const rev2 = await adapter.publishArtifact({
       sessionId: session.sessionId,
       artifactId: "art_gemini_test",
