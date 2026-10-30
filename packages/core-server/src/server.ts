@@ -48,12 +48,40 @@ export class CoreServer {
   }
 
   private setupRoutes(): void {
-    // Optional secret token authentication check
+    // Authentication and origin security hook
     this.fastify.addHook("preHandler", async (request, reply) => {
+      // Exclude health check from token auth so orchestrators can probe readiness
+      if (request.url === "/v1/health" || request.url.startsWith("/v1/health?")) {
+        return;
+      }
+
+      // Origin check for browser clients
+      const origin = request.headers.origin;
+      if (origin && origin !== "null") {
+        const isTauri =
+          origin.startsWith("tauri://") || origin.startsWith("http://tauri.localhost");
+        const isLocal =
+          origin.includes("localhost") ||
+          origin.includes("127.0.0.1") ||
+          origin.includes("[::1]");
+        if (!isTauri && !isLocal) {
+          return reply
+            .status(403)
+            .send({ error: "Forbidden: Cross-origin request not permitted" });
+        }
+      }
+
+      // Secret token check
       if (this.secretToken && request.url.startsWith("/v1/")) {
         const auth = request.headers["x-visualloop-token"] || request.headers.authorization;
-        if (auth !== this.secretToken && auth !== `Bearer ${this.secretToken}`) {
-          reply.status(401).send({ error: "Unauthorized: Invalid secret token" });
+        const providedToken =
+          typeof auth === "string" && auth.startsWith("Bearer ")
+            ? auth.slice(7).trim()
+            : auth;
+        if (providedToken !== this.secretToken) {
+          return reply
+            .status(401)
+            .send({ error: "Unauthorized: Invalid or missing secret token" });
         }
       }
     });

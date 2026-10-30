@@ -23,15 +23,13 @@ function crc32(buf: Buffer): number {
 }
 
 /**
- * Creates a valid, rasterized PNG buffer of the given dimensions and solid color.
+ * Creates a valid PNG buffer from an RGB pixel generator function.
  * Generates true PNG format with magic signature \x89PNG\r\n\x1a\n and valid IHDR/IDAT/IEND chunks.
  */
-export function createSolidPngBuffer(
+export function encodeRgbRaster(
   width: number,
   height: number,
-  r = 255,
-  g = 255,
-  b = 255
+  getPixel: (x: number, y: number) => [number, number, number]
 ): Buffer {
   const clampedWidth = Math.max(1, Math.min(4096, Math.round(width)));
   const clampedHeight = Math.max(1, Math.min(4096, Math.round(height)));
@@ -62,6 +60,7 @@ export function createSolidPngBuffer(
     rawData[rowOffset] = 0;
     for (let x = 0; x < clampedWidth; x++) {
       const pxOffset = rowOffset + 1 + x * 3;
+      const [r, g, b] = getPixel(x, y);
       rawData[pxOffset] = r;
       rawData[pxOffset + 1] = g;
       rawData[pxOffset + 2] = b;
@@ -80,4 +79,17 @@ export function createSolidPngBuffer(
   const iendChunk = Buffer.from([0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
 
   return Buffer.concat([header, ihdr, idat, iendChunk]);
+}
+
+/**
+ * Creates a valid, rasterized PNG buffer of the given dimensions and solid color.
+ */
+export function createSolidPngBuffer(
+  width: number,
+  height: number,
+  r = 255,
+  g = 255,
+  b = 255
+): Buffer {
+  return encodeRgbRaster(width, height, () => [r, g, b]);
 }

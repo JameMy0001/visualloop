@@ -323,6 +323,20 @@ export class GeminiCliAdapter extends BaseAgentAdapter implements AgentAdapter {
     const codeBlockMatch = candidateText.match(/```(?:xml|svg|html|tsx|jsx)?\s*([\s\S]*?)```/);
     const revisedCode = codeBlockMatch ? codeBlockMatch[1].trim() : candidateText.trim();
 
+    if (!revisedCode || revisedCode.length === 0) {
+      throw new Error("Model generated empty code output.");
+    }
+
+    // Safety validation against corrupt code output
+    const isSvg = options.sourceCode.trim().startsWith("<svg") || options.sourceCode.includes("<svg");
+    if (isSvg) {
+      if (!revisedCode.includes("<svg") || !revisedCode.includes("</svg>")) {
+        throw new Error(
+          "Model generated invalid SVG: output does not contain valid <svg> ... </svg> root tags."
+        );
+      }
+    }
+
     return { revisedCode, modelUsed: model };
   }
 

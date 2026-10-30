@@ -1,165 +1,163 @@
+<div align="center">
+
 # VisualLoop
 
-> **Tagline:** See it. Circle it. Fix it.  
-> **Status:** Production-Ready Desktop Utility (Live Previews, True DOM Capture & Gemini Closed-Loop Feedback)  
-> **License:** MIT
+### See it. Circle it. Fix it.
 
-VisualLoop is an open-source, local-first visual feedback companion for AI coding agents. When an agent creates or modifies a visual artifact (SVG or HTML snippet), VisualLoop displays it in a clean, floating desktop overlay. The user can expand the window, circle or highlight specific areas, add notes, and submit feedback directly back to the agent session.
+**Visual feedback for AI-generated interfaces.**  
+Preview an artifact, mark exactly what needs to change, and send contextual feedback back to an agent.
 
----
+[![CI](https://github.com/JameMy0001/visualloop/actions/workflows/ci.yml/badge.svg)](https://github.com/JameMy0001/visualloop/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-171717.svg)](LICENSE)
+[![Status: Developer Preview](https://img.shields.io/badge/status-developer%20preview-737373.svg)](#project-status)
 
-## Architecture Overview
+[Getting started](#getting-started) · [How it works](#how-it-works) · [Architecture](#architecture) · [Contributing](#contributing)
 
-```
-                      +-----------------------------+
-                      |       AI Coding Agent       |
-                      |  (Gemini CLI, Supported)    |
-                      +--------------+--------------+
-                                     |
-                        Adapter Bridge (Port 4178)
-                                     |
-                      +--------------v--------------+
-                      |   VisualLoop Core Server    |
-                      |   - Atomic File Store       |
-                      |   - Feedback Queue & Ack    |
-                      |   - Authenticated WebSocket |
-                      +--------------+--------------+
-                                     |
-                      +--------------v--------------+
-                      |   Tauri 2 Desktop Shell     |
-                      |   - Mini Floating Overlay   |
-                      |   - Monochrome Design System|
-                      |   - Live Artifact Renderer  |
-                      |   - Normalized Coordinates  |
-                      +-----------------------------+
-```
-
-### Core Features
-
-- **Tauri 2 Native Desktop Shell:**
-  - Minimal monochrome design system (`#F5F5F5` background, `#FFFFFF` panels, `#171717` typography, functional red `#E14C45` annotations).
-  - Mini overlay mode (~360 x 220 px, floating, always-on-top, click-through toggle with keyboard lock release).
-  - Expanded annotation workspace (1024 x 768 px, resizable, draggable titlebar).
-  - Global hotkey support (`Cmd+Shift+V` / `Ctrl+Shift+V`).
-- **Live Preview Engine:**
-  - Live SVG & sandboxed HTML rendering (no mock or hardcoded solar-system fallback).
-  - Path traversal security, strict origin validation, and DOMPurify SVG sanitization.
-  - Empty state with clear guidance when awaiting agent artifacts.
-- **Truthful Annotation & Feedback Pipeline:**
-  - Native SVG capture directly from rendered canvas — no 1x1 dummy images.
-  - Drawing tools: Circle, Rectangle, Arrow, Freehand drawing.
-  - Normalized coordinates `[0, 1]` relative to artifact canvas.
-  - Stale revision notifications when an agent updates while user is reviewing.
-- **Agent Closed Loop:**
-  - **Gemini CLI:** Fully supported (`watchFeedback`, `getLatestFeedback`, `acknowledgeFeedback`, actionable prompt generation).
-  - **Claude Code & Codex:** Experimental stubs (transparently signal unsupported capabilities instead of returning fake delivered receipts).
+</div>
 
 ---
 
-## Directory Structure
+VisualLoop is an open-source, local-first desktop companion for reviewing visual work produced by AI coding tools. Instead of explaining a UI problem in a long chat message, you can point to the area in a floating preview, add a short instruction, and submit structured feedback.
 
-```text
-visualloop/
-├── apps/
-│   └── desktop/                 # Tauri 2 + React + Vite + Tailwind CSS
-│       ├── src/
-│       │   ├── components/      # MiniOverlay, ExpandedEditor, WindowControls, ArtifactViewer
-│       │   ├── hooks/           # useWindowState
-│       │   ├── services/        # tauriBridge, coreClient, eventClient
-│       │   ├── state/           # useVisualLoopStore
-│       │   └── styles/          # globals.css (monochrome design tokens)
-│       └── src-tauri/           # Rust Tauri 2 shell (lib.rs, main.rs, tauri.conf.json)
-├── packages/
-│   ├── protocol/                # Zod schemas, types, coordinate normalization
-│   ├── core-server/             # Fastify, WebSocket, atomic file persistence, feedback queue
-│   ├── preview-engine/          # Safe path validation, SVG/HTML sanitization, rasterization
-│   ├── annotation-engine/       # Canvas geometry, undo/redo, dual screenshot capture
-│   └── agent-sdk/               # AgentAdapter interface & error types
-├── adapters/
-│   ├── gemini-cli/              # Gemini CLI adapter (Supported)
-│   ├── claude-code/             # Claude Code adapter (Experimental)
-│   └── codex/                   # Codex adapter (Experimental)
-├── skills/
-│   └── visualloop/SKILL.md      # Agent integration skill definition
-├── examples/
-│   ├── solar-system.svg         # Sample SVG artifact
-│   └── animated-card/           # Sample HTML/CSS artifact
-└── tests/
-    └── integration/             # End-to-end integration tests
+The project currently targets **SVG and HTML artifacts**, with an experimental **Gemini API-powered revision workflow**. Other agent integrations are under development.
+
+<div align="center">
+  <img src="docs/assets/visualloop-demo.gif" alt="VisualLoop Desktop Workflow: Mini Preview, Expand, Circle Annotation, Submit Feedback, and Instant Revision" width="800" />
+</div>
+
+## Why VisualLoop?
+
+| Without VisualLoop | With VisualLoop |
+| --- | --- |
+| Describe positions and visual defects in text | Mark the exact region in a preview |
+| Switch between the agent and a separate browser | Keep a compact, always-on-top preview nearby |
+| Lose the context of which revision is being reviewed | Attach feedback to an artifact and revision |
+| Pass around informal screenshots | Produce structured annotations and capture data |
+
+VisualLoop focuses on the **review and feedback layer**. Your AI model remains responsible for generating and modifying the source code.
+
+## How it works
+
+```mermaid
+flowchart LR
+  A[AI-generated SVG / HTML] --> B[Local preview]
+  B --> C[Circle, point, and annotate]
+  C --> D[Structured feedback]
+  D --> E[Agent revision]
+  E --> B
 ```
 
----
+1. **Publish** an SVG or HTML artifact through the local service.
+2. **Preview** it in the floating mini window; expand to review the details.
+3. **Annotate** regions with shapes and written instructions.
+4. **Submit** feedback associated with the current session, artifact, and revision.
+5. **Review** the next revision when the connected runner publishes an update.
 
-## Getting Started
+> Automatic source-code changes require a configured agent runner. The current Gemini integration calls the **Gemini API**; it does not inject messages into an existing Gemini CLI conversation.
+
+## What is implemented
+
+| Capability | Current scope |
+| --- | --- |
+| Floating desktop preview | Tauri 2 mini / expanded windows; native window controls |
+| Visual annotation | Circle, rectangle, arrow, and freehand markup |
+| Artifact preview | SVG and HTML via the local service |
+| Feedback transport | Fastify API, WebSocket events, revision metadata, persisted feedback |
+| Gemini-powered revisions | Experimental runner using `GEMINI_API_KEY` and a source file |
+| Claude Code / Codex | Adapter interfaces exist; automated delivery is not yet implemented |
+
+## Getting started
 
 ### Prerequisites
 
-- Node.js >= 20 (v22 LTS recommended)
-- pnpm >= 9 (`npm install -g pnpm`)
-- Rust toolchain (stable, rustc >= 1.77) with Cargo (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- **Node.js 22** and **pnpm** (this repository pins `pnpm@12.3.4`)
+- **Rust stable** and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system to run the native window
+- A **Gemini API key** only if you want experimental model-assisted code revisions
 
-### Installation
+### 1. Install and build
 
 ```bash
+git clone https://github.com/JameMy0001/visualloop.git
+cd visualloop
 pnpm install
 pnpm build
 ```
 
-### Running the Application
+### 2. Run the desktop development stack
 
-#### Option A: One-Command Full Desktop Stack (Recommended)
+Run the unified launcher to start both the background core service and the desktop interface:
+
 ```bash
-# Starts VisualLoop Core Server on port 4178 and launches the Tauri Desktop window
 pnpm start
 ```
 
-#### Option B: Live Gemini AI Companion Runner
-```bash
-# Set your Gemini API key for real automated code edits
-export GEMINI_API_KEY="your-google-gemini-api-key"
+For browser-only testing without native Tauri windowing, run `pnpm start --web` (or `pnpm dev:web`).
 
-# Launches the Gemini companion agent to watch an artifact and apply circled revisions
+You can also run the services in separate terminals:
+- **Terminal A (Core Server):** `pnpm --filter @visualloop/core-server start`
+- **Terminal B (Desktop Window):** `pnpm dev`
+
+### 3. Try the experimental Gemini runner
+
+With the local service and desktop app running, configure `GEMINI_API_KEY` in your shell or secrets manager. For example, in Bash/Zsh:
+
+```bash
+export GEMINI_API_KEY="your-api-key"
 pnpm agent:gemini examples/solar-system.svg
 ```
 
-#### Option C: Web Simulation Mode (Instant, No Rust Compilation)
-```bash
-pnpm dev:web
-```
-Opens Vite at `http://localhost:5173`. Simulates both the mini floating window and the expanded annotation editor in-browser.
+This runner registers a session, publishes the selected file, polls for feedback, and can request a revised file from the Gemini API. **Back up your source file first:** the runner writes the generated replacement directly to disk. Content passed to Gemini is sent to Google's API and may incur usage charges.
 
-#### Option D: Standalone Desktop Window
+## Development and verification
+
 ```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-pnpm dev
+pnpm test                 # Unit and integration tests
+pnpm typecheck            # Build and TypeScript validation
+pnpm demo:golden-path     # Scripted feedback / revision smoke test
 ```
+
+The scripted demo verifies local session, feedback, file mutation, and revision plumbing. It **does not** prove that a live Gemini model edited the file or that the desktop GUI completed an end-to-end review. GitHub Actions currently checks builds, tests, typechecking, and Rust compilation on **macOS and Ubuntu**.
+
+## Architecture
+
+```text
+apps/desktop/              Tauri 2 + React review interface
+packages/core-server/     Local API, events, and persisted state
+packages/preview-engine/  Artifact loading and rendering utilities
+packages/annotation-engine/ Coordinate mapping and annotation capture
+packages/protocol/        Shared types and validation
+packages/agent-sdk/       Adapter contracts
+adapters/gemini-cli/       Experimental Gemini API-backed runner
+adapters/claude-code/      Integration scaffold
+adapters/codex/            Integration scaffold
+skills/visualloop/        Agent skill instructions
+```
+
+VisualLoop is designed to remain **local-first**. The application exchanges preview and feedback state with a service on your machine. **Model-assisted revisions are not offline:** the experimental Gemini runner sends source code and feedback to the configured external API.
+
+## Project status
+
+**Developer Preview — v0.1.0 (source build).** The codebase has passing GitHub Actions checks, but there are known release blockers before we can call it a public beta:
+
+- The one-command launcher and desktop packaging need final integration and verification.
+- HTML screenshot capture and the headless screenshot worker need fidelity testing; the worker currently produces valid PNG files containing solid-color placeholders rather than the rendered artifact.
+- The SVG/HTML preview security boundary and local API authentication need further hardening.
+- End-to-end testing with a real desktop window and a live Gemini model must be demonstrated and documented.
+
+These limitations are tracked in the project release-readiness review. Please use caution with untrusted artifacts and avoid reviewing sensitive source files until the security model has been verified.
+
+## Contributing
+
+Contributions, bug reports, and design feedback are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), open an [issue](https://github.com/JameMy0001/visualloop/issues), or propose a focused pull request.
+
+Suggested areas: browser capture fidelity, secure preview isolation, agent adapters, accessibility, native window behavior, and release packaging.
+
+## License
+
+VisualLoop is released under the [MIT License](LICENSE).
 
 ---
 
-## Verified Golden Path E2E Demo
-
-Run the automated closed-loop smoke test:
-
-```bash
-pnpm demo
-# or
-pnpm demo:golden-path
-```
-
-This script:
-1. Spawns Core Server on an ephemeral port.
-2. Registers a Gemini CLI session.
-3. Publishes Revision 1 of an SVG artifact.
-4. Simulates user feedback (annotation + general direction).
-5. Agent receives feedback, acknowledges receipt, and edits the source file on disk.
-6. Publishes Revision 2 and asserts different content hashes and revision progression.
-
----
-
-## Automated Test Suite
-
-Run the Vitest test suite covering protocol validation, path security, HTML sanitization, coordinate normalization, store snapshots, and closed-loop feedback:
-
-```bash
-pnpm test
-```
+<div align="center">
+  <sub>Built for clearer feedback between people and coding agents.</sub>
+</div>

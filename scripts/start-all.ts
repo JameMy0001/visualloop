@@ -1,4 +1,5 @@
-import { spawn, ChildProcess } from "node:child_process";
+import { spawn, execSync, ChildProcess } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 
@@ -15,7 +16,7 @@ function checkHealth(port = 4178): Promise<boolean> {
   });
 }
 
-async function waitForServer(port = 4178, maxWaitMs = 10000): Promise<boolean> {
+async function waitForServer(port = 4178, maxWaitMs = 12000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     if (await checkHealth(port)) return true;
@@ -25,9 +26,28 @@ async function waitForServer(port = 4178, maxWaitMs = 10000): Promise<boolean> {
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const isWebOnly =
+    args.includes("--web") ||
+    process.env.VISUALLOOP_MODE === "web" ||
+    process.env.HEADLESS === "1";
+
   console.log("==================================================");
   console.log("   VISUALLOOP UNIFIED LAUNCHER");
   console.log("==================================================");
+  console.log(`Mode: ${isWebOnly ? "Web Browser (dev:web)" : "Native Desktop (Tauri)"}`);
+
+  // Ensure core-server build exists
+  const serverCliPath = path.resolve(
+    process.cwd(),
+    "packages/core-server/dist/cli.js"
+  );
+  if (!fs.existsSync(serverCliPath)) {
+    console.log("[Build] Building @visualloop/core-server distribution...");
+    execSync("pnpm --filter @visualloop/core-server build", {
+      stdio: "inherit",
+    });
+  }
 
   let serverProcess: ChildProcess | null = null;
   const isServerRunning = await checkHealth(4178);
@@ -43,21 +63,22 @@ async function main() {
 
     const ready = await waitForServer(4178);
     if (!ready) {
-      console.error("[FAIL] Core Server failed to start within 10 seconds.");
+      console.error("[FAIL] Core Server failed to start within 12 seconds.");
       if (serverProcess) serverProcess.kill();
       process.exit(1);
     }
     console.log("[OK] Core Server started and ready at http://127.0.0.1:4178");
   }
 
-  console.log("[2/2] Spawning VisualLoop Desktop Shell...");
-  const desktopProcess = spawn("pnpm", ["--filter", "@visualloop/desktop", "dev"], {
+  const desktopTarget = isWebOnly ? "dev:web" : "dev";
+  console.log(`[2/2] Spawning VisualLoop Frontend (${desktopTarget})...`);
+  const desktopProcess = spawn("pnpm", ["--filter", "@visualloop/desktop", desktopTarget], {
     stdio: "inherit",
     shell: true,
   });
 
   const cleanup = () => {
-    console.log("\nShutting down VisualLoop...");
+    console.log("\nShutting down VisualLoop launcher...");
     if (desktopProcess) desktopProcess.kill();
     if (serverProcess) serverProcess.kill();
     process.exit(0);

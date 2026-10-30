@@ -88,7 +88,7 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
       ) : (
         <iframe
           title={artifact.title || "Artifact Preview"}
-          sandbox="allow-same-origin allow-scripts"
+          sandbox="allow-scripts"
           srcDoc={renderedContent}
           className="w-full h-full border-0 rounded-lg pointer-events-auto"
         />

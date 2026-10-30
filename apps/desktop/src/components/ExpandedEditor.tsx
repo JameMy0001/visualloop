@@ -201,24 +201,39 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     setSubmitError(null);
 
     const viewport = getViewportDimensions();
+    const vpWidth = Math.max(1, Math.round(viewport.width));
+    const vpHeight = Math.max(1, Math.round(viewport.height));
 
-    // Extract actual rendered SVG from the DOM or construct baseline
-    const svgEl = canvasRef.current?.querySelector("svg");
-    const baseSvg = svgEl
-      ? svgEl.outerHTML
-      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(viewport.width)} ${Math.round(viewport.height)}"><rect width="100%" height="100%" fill="#FFFFFF"/></svg>`;
+    // Extract actual rendered preview surface from the DOM
+    let baseSvg = "";
+    if (artifact?.kind === "svg") {
+      const svgEl = canvasRef.current?.querySelector("svg");
+      baseSvg = svgEl ? svgEl.outerHTML : (artifact.content || "");
+    } else if (artifact?.kind === "html" && artifact.content) {
+      // Authentic HTML rasterization via SVG foreignObject container
+      baseSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vpWidth}" height="${vpHeight}" viewBox="0 0 ${vpWidth} ${vpHeight}">
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+  <foreignObject width="100%" height="100%">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;overflow:hidden;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
+      ${artifact.content}
+    </div>
+  </foreignObject>
+</svg>`;
+    } else {
+      const svgEl = canvasRef.current?.querySelector("svg");
+      baseSvg = svgEl
+        ? svgEl.outerHTML
+        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vpWidth} ${vpHeight}"><rect width="100%" height="100%" fill="#FFFFFF"/></svg>`;
+    }
 
     const dual: DualCaptureResult = generateDualCapture(baseSvg, annotations, {
-      width: Math.round(viewport.width),
-      height: Math.round(viewport.height),
+      width: vpWidth,
+      height: vpHeight,
       devicePixelRatio: window.devicePixelRatio || 1,
       zoom: 1,
       scrollX: 0,
       scrollY: 0,
     });
-
-    const vpWidth = Math.round(viewport.width);
-    const vpHeight = Math.round(viewport.height);
 
     let originalScreenshotDataUrl = dual.originalDataUrl;
     let annotatedScreenshotDataUrl = dual.annotatedDataUrl;
