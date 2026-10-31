@@ -12,7 +12,7 @@ Review a UI in a floating preview, mark the exact region that needs work, and se
 [![MIT License](https://img.shields.io/badge/License-MIT-171717.svg)](LICENSE)
 [![Developer Preview](https://img.shields.io/badge/Status-Developer%20Preview-737373.svg)](#project-maturity)
 
-[Overview](#overview) · [Demo](#demo) · [Architecture](#system-architecture) · [Getting started](#getting-started) · [Technical details](#technical-details) · [Contributing](#contributing)
+[Overview](#overview) · [Demo](#demo) · [Tech stack](#technology-stack) · [Architecture](#system-architecture) · [Getting started](#getting-started) · [Contributing](#contributing)
 
 </div>
 
@@ -64,6 +64,68 @@ The interface supports the human review steps. Automatic revision requires a con
 | It is unclear which version a comment applies to. | Feedback references a session, artifact, and revision. |
 | Reviewing means switching to a separate browser or image viewer. | A Tauri desktop companion offers mini and expanded views. |
 | Integrations are tightly coupled to one UI. | A local server and adapter contracts separate review from model execution. |
+
+## Technology stack
+
+The icons below represent tools **actually referenced by the current source and dependency manifests**. They link to the corresponding official documentation.
+
+<div align="center">
+
+**Languages & web standards**
+
+<p align="center">
+  <a href="https://www.typescriptlang.org/" title="TypeScript"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/typescript/typescript-original.svg" alt="TypeScript logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" title="JavaScript"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/javascript/javascript-original.svg" alt="JavaScript logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://www.rust-lang.org/" title="Rust"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/rust/rust-original.svg" alt="Rust logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://developer.mozilla.org/en-US/docs/Web/HTML" title="HTML5"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/html5/html5-original.svg" alt="HTML5 logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://developer.mozilla.org/en-US/docs/Web/CSS" title="CSS3"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/css3/css3-original.svg" alt="CSS3 logo" width="42" height="42" /></a>
+</p>
+
+<sub>TypeScript · JavaScript · Rust · HTML5 · CSS3</sub>
+
+<br /><br />
+
+**Desktop, frontend & backend**
+
+<p align="center">
+  <a href="https://react.dev/" title="React"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/react/react-original.svg" alt="React logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://tauri.app/" title="Tauri"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/tauri/tauri-original.svg" alt="Tauri logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://tailwindcss.com/" title="Tailwind CSS"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/tailwindcss/tailwindcss-original.svg" alt="Tailwind CSS logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://vite.dev/" title="Vite"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/vitejs/vitejs-original.svg" alt="Vite logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://nodejs.org/" title="Node.js"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/nodejs/nodejs-original.svg" alt="Node.js logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://fastify.dev/" title="Fastify"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/fastify/fastify-original.svg" alt="Fastify logo" width="42" height="42" /></a>
+</p>
+
+<sub>React · Tauri · Tailwind CSS · Vite · Node.js · Fastify</sub>
+
+<br /><br />
+
+**Development & continuous integration**
+
+<p align="center">
+  <a href="https://pnpm.io/" title="pnpm"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/pnpm/pnpm-original.svg" alt="pnpm logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://vitest.dev/" title="Vitest"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/vitest/vitest-original.svg" alt="Vitest logo" width="42" height="42" /></a>
+  &nbsp;&nbsp; <a href="https://docs.github.com/en/actions" title="GitHub Actions"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/githubactions/githubactions-original.svg" alt="GitHub Actions logo" width="42" height="42" /></a>
+</p>
+
+<sub>pnpm · Vitest · GitHub Actions</sub>
+
+</div>
+
+### Where each technology fits
+
+| Layer | Main technologies | Responsibility |
+| :--- | :--- | :--- |
+| **Native desktop** | Rust, Tauri 2 | Window lifecycle, native commands, desktop shell |
+| **Review interface** | TypeScript, React, HTML/CSS, Tailwind CSS, Vite | Floating preview, annotations, editor interactions |
+| **Local API & events** | Node.js, TypeScript, Fastify, WebSocket (`ws`), Zod | Sessions, artifact revisions, validated requests, feedback transport |
+| **Shared packages** | TypeScript | Protocol types, annotation geometry, preview utilities, agent contracts |
+| **Agent integration** | TypeScript, Google Gemini API (optional) | Read feedback, request a model revision, validate and write the source |
+| **Build & quality** | pnpm, Vitest, Cargo, GitHub Actions | Monorepo dependencies, automated tests, Rust checks, CI |
+
+> **Integration boundary:** Gemini is an external API used by the optional runner, not a bundled local model. Claude Code and Codex are adapter scaffolds rather than finished integrations.
+
+---
 
 ## System architecture
 
