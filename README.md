@@ -150,76 +150,111 @@ The `ModelProvider` plugin interface is open for contributors to implement other
 
 ## System architecture
 
-VisualLoop is a **local-first TypeScript monorepo with a Tauri 2 desktop shell**. The UI, API, preview utilities, annotation geometry, and agent adapter have separate responsibilities.
+VisualLoop is a **local-first TypeScript monorepo with a Tauri 2 desktop shell**. The desktop UI, annotation engine, preview utilities, local API, agent skill, and optional revision processors have distinct responsibilities.
 
-GitHub renders the Mermaid diagrams below directly from this README. The diagrams document the intended component boundaries and the implemented Gemini API runner—not a claim that every proposed third-party adapter is operational.
+The diagrams below describe two implemented integration paths: an **AI coding agent invoking the VisualLoop Skill** to open an artifact, and the **Core Server's provider-backed revision path** for SVG/HTML. An external polling runner is also available. The skill does not intercept every AI chat automatically: the agent must invoke its scripts. Claude Code and Codex direct-session adapters remain experimental, and not every provider/model combination has been live-tested.
 
 ### Component diagram
 
 ```mermaid
 flowchart TB
-    subgraph Local["Local machine"]
-        subgraph Review["Review interface"]
-            UI["Tauri 2 + React<br/>Mini preview / expanded editor"]
-            WEB["Browser development UI<br/>Vite"]
+    subgraph LOCAL["Local machine"]
+        subgraph AGENTS["Agent and workspace"]
+            AGENT["AI coding agent<br/>Generates visual artifact"]
+            SKILL["VisualLoop Skill scripts<br/>setup / open / wait_feedback"]
+            FILES[("Workspace files<br/>SVG, HTML and previewable assets")]
         end
 
-        ANNO["Annotation engine<br/>Normalized bounds and coordinates"]
-        CORE["Core server<br/>Fastify REST + WebSocket<br/>Sessions, artifacts, revisions, feedback"]
-        PREVIEW["Preview engine<br/>Artifact loading / sanitization<br/>Capture utilities"]
-        RUNNER["Gemini API runner<br/>Feedback polling and file revisions"]
-        FILES[("Workspace files<br/>SVG / HTML")]
-        TOKEN[("Local auth token<br/>~/.visualloop/auth_token")]
+        subgraph DESKTOP["Visual review"]
+            UI["Tauri 2 + React<br/>Mini Preview / Expanded Editor / Settings"]
+            ANNO["Annotation engine<br/>Marked regions and capture"]
+            DEV["Vite browser UI<br/>Development only"]
+        end
 
+        subgraph SERVICES["Local services"]
+            CORE["Core Server<br/>Fastify REST + WebSocket"]
+            PREVIEW["Preview engine<br/>Load / sanitize / render data"]
+            INTERNAL["Core AI revision processor<br/>SVG / HTML source edits"]
+            RUNNER["Optional external AI runner<br/>Poll feedback / publish revision"]
+            CONFIG[("Local provider settings<br/>Provider, model and API key")]
+            TOKEN[("Local auth token")]
+        end
+
+        AGENT -->|"Write artifact"| FILES
+        AGENT -->|"Invoke scripts"| SKILL
+        SKILL -->|"Select artifact"| CORE
+        SKILL -->|"Activate app"| UI
+        SKILL -.->|"Optional feedback polling"| CORE
         UI --> ANNO
-        UI <-->|"Authenticated HTTP / WebSocket"| CORE
-        WEB <-.->|"Development mode"| CORE
+        UI <-->|"Authenticated REST / WebSocket"| CORE
+        DEV -.->|"Development access"| CORE
         CORE --> PREVIEW
-        PREVIEW <--> FILES
-        RUNNER <-->|"Register, publish, poll, ACK"| CORE
-        RUNNER <--> FILES
+        PREVIEW --> FILES
+        CORE --> INTERNAL
+        INTERNAL -->|"Validate, back up and write"| FILES
+        RUNNER <-->|"Poll / publish / acknowledge"| CORE
+        RUNNER <-->|"Read and update files"| FILES
+        CONFIG -.-> CORE
         TOKEN -.-> CORE
         TOKEN -.-> UI
         TOKEN -.-> RUNNER
     end
 
-    GEMINI["Google Gemini API<br/>Optional external service"]
-    RUNNER -.->|"Source + feedback; API key required"| GEMINI
+    PROVIDERS["External model services<br/>Gemini / OpenAI / Anthropic<br/>OpenAI-compatible endpoints"]
+    INTERNAL -->|"Configured API call"| PROVIDERS
+    RUNNER -.->|"Optional provider call"| PROVIDERS
 ```
 
-**Key design decisions:** The desktop UI owns interaction and annotation; the core service owns session/revision state and feedback transport; the preview engine handles artifact loading and sanitization; a separate runner is responsible for model calls and source-file changes. Local-first **does not mean offline** when the Gemini API integration is enabled.
+**Architecture boundaries:** The agent creates the first artifact and can use `skills/visualloop/scripts/open.sh` to open it. The desktop app handles preview, annotations, and feedback composition; the Core Server owns sessions, feedback transport, revisions, and a built-in model-driven **SVG/HTML** editing path. A separate runner can also consume feedback. Previewable image files are not equivalent to directly AI-editable image source files. Provider configuration is selectable in the app, but direct integration into an existing third-party agent chat is not implied.
 
 ### Feedback-to-revision sequence
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant R as Gemini runner
-    participant S as Local core server
-    participant U as Review UI
-    participant F as Workspace file
-    participant G as Gemini API
+    actor User as Reviewer
+    participant Agent as AI coding agent
+    participant Skill as VisualLoop Skill
+    participant File as Workspace SVG/HTML
+    participant Core as Local Core Server
+    participant UI as Tauri Preview
+    participant AI as Configured AI API
+    participant Runner as Optional external runner
 
-    R->>S: Register session and publish revision N
-    S->>F: Load and sanitize artifact
-    S-->>U: WebSocket preview event
-    U->>U: Draw annotation and write instruction
-    U->>S: Submit feedback for revision N
-    S-->>R: Return pending feedback on poll
+    User->>Agent: Prompt to generate a visual artifact
+    Agent->>File: Write initial SVG or HTML
+    Agent->>Skill: Invoke open.sh with file path
+    Skill->>Core: POST /v1/workspace/select-asset
+    Core->>File: Read and sanitize artifact
+    Core-->>UI: WebSocket preview.ready (revision N)
+    Skill->>UI: Bring VisualLoop to foreground
+    User->>UI: Circle 3 areas and type targeted corrections
+    UI->>Core: POST /v1/feedback with annotations and instructions
+    Core-->>UI: Feedback accepted / queued
 
-    alt API key configured
-        R->>G: Send source and feedback
-        G-->>R: Return revised source
-        R->>F: Validate, back up, replace file
-        R->>S: Publish revision N+1
-        S-->>U: Updated preview event
-        R->>S: Acknowledge handled feedback
-    else No API key
-        R-->>S: Leave feedback pending
+    alt Core Server handles revision (SVG/HTML, API configured)
+        Core->>File: Read current source
+        Core->>AI: Send source, marked screenshot and instructions
+        AI-->>Core: Revised SVG/HTML source
+        Core->>File: Validate, back up and write updated source
+        Core->>Core: Publish revision N+1; acknowledge feedback
+        Core-->>UI: preview.ready and revision.published
+        User->>UI: Inspect corrected regions in revision N+1
+    else External runner handles pending feedback
+        Runner->>Core: Poll for pending feedback
+        Core-->>Runner: Return marked feedback
+        Runner->>AI: Generate revised source (if configured)
+        AI-->>Runner: Revised source
+        Runner->>File: Validate, back up and update source
+        Runner->>Core: Publish revision N+1; acknowledge feedback
+        Core-->>UI: Updated preview and revision event
+        User->>UI: Inspect corrected regions in revision N+1
+    else No available revision processor
+        Note over Core,UI: Feedback remains pending; no automatic revision is guaranteed
     end
 ```
 
-The sequence describes the runner-driven flow. Automated test coverage for the protocol does not by itself prove a real person operated a native desktop window or that Google Gemini processed a request.
+This sequence is the **intended success path**, not evidence that every provider or agent integration has been tested live. The built-in automatic source revision currently supports **SVG and HTML**, requires a usable provider configuration, and may fail if the model response or validation fails. To avoid two processors handling one request, configure a single revision owner for a demo or deployment. The README GIF is a scripted UI mock-up until it is explicitly replaced with a verified native recording.
 
 ## Current capabilities
 
