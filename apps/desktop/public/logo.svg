@@ -1,12 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="100%" height="100%">
   <defs>
-    <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="vlGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#FFFFFF" />
-      <stop offset="100%" stop-color="#EDEDED" />
+      <stop offset="100%" stop-color="#F5F5F5" />
     </linearGradient>
   </defs>
   <!-- Pure black background -->
   <rect width="1024" height="1024" fill="#000000" />
-  <!-- Minimalist Geometric V -->
-  <polygon points="220,240 350,240 512,542 674,240 804,240 512,784" fill="url(#vGrad)" />
+  <!-- Minimalist Geometric V and L Monogram -->
+  <g fill="url(#vlGrad)">
+    <polygon points="164.0,260.0 272.3,260.0 374.0,504.0 475.7,260.0 584.0,260.0 374.0,764.0" />
+    <polygon points="638.0,260.0 738.0,260.0 738.0,664.0 860.0,664.0 860.0,764.0 638.0,764.0" />
+  </g>
 </svg>

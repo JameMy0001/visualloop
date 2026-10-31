@@ -312,7 +312,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           </button>
           <div data-tauri-drag-region className="w-3.5 h-3.5 rounded-[3px] bg-[#000000] flex items-center justify-center flex-shrink-0">
             <svg viewBox="0 0 1024 1024" className="w-2.5 h-2.5" fill="none">
-              <polygon points="220,240 350,240 512,542 674,240 804,240 512,784" fill="#FFFFFF" />
+              <polygon points="164,260 272.3,260 374,504 475.7,260 584,260 374,764" fill="#FFFFFF" />
+              <polygon points="638,260 738,260 738,664 860,664 860,764 638,764" fill="#FFFFFF" />
             </svg>
           </div>
           <span className="text-xs font-semibold text-[#171717]" data-tauri-drag-region>
