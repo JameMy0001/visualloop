@@ -4,7 +4,7 @@ export const AgentCapabilitiesSchema = z.object({
   supportsDirectInjection: z.boolean().default(false),
   supportsFilePolling: z.boolean().default(true),
   supportsStreaming: z.boolean().default(false),
-  acceptedArtifactKinds: z.array(z.enum(["svg", "html", "react", "canvas"])).default(["svg", "html"]),
+  acceptedArtifactKinds: z.array(z.enum(["svg", "html", "react", "canvas", "image", "slide", "pdf"])).default(["svg", "html", "image"]),
 });
 
 export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;

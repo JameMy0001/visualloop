@@ -12,6 +12,7 @@ import {
   AlertCircle,
   RefreshCw,
   Settings,
+  FolderOpen,
 } from "lucide-react";
 import {
   Annotation,
@@ -38,6 +39,7 @@ interface ExpandedEditorProps {
   onAcceptNewRevision?: () => void;
   onShrink: () => void;
   onOpenSettings?: () => void;
+  onOpenAssetPicker?: () => void;
   onClose: () => void;
   onSubmitFeedback: (submission: FeedbackSubmission) => Promise<boolean | void>;
   feedbackStatus?: FeedbackUIStatus;
@@ -50,6 +52,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   onAcceptNewRevision,
   onShrink,
   onOpenSettings,
+  onOpenAssetPicker,
   onClose,
   onSubmitFeedback,
   feedbackStatus = "idle",
@@ -240,6 +243,11 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     if (artifact?.kind === "svg") {
       const svgEl = canvasRef.current?.querySelector("svg");
       baseSvg = svgEl ? svgEl.outerHTML : (artifact.content || "");
+    } else if (artifact?.kind === "image" && artifact.content) {
+      baseSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vpWidth}" height="${vpHeight}" viewBox="0 0 ${vpWidth} ${vpHeight}">
+  <rect width="100%" height="100%" fill="#FAFAFA"/>
+  <image href="${artifact.content}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"/>
+</svg>`;
     } else if (artifact?.kind === "html" && artifact.content) {
       // Authentic HTML rasterization via SVG foreignObject container
       baseSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vpWidth}" height="${vpHeight}" viewBox="0 0 ${vpWidth} ${vpHeight}">
@@ -390,6 +398,21 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {onOpenAssetPicker && (
+            <button
+              type="button"
+              data-no-drag
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              onClick={onOpenAssetPicker}
+              title="Browse Project Assets (Images, Slides, SVGs)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-semibold text-[#171717] bg-[#FFFFFF] border border-[#D4D4D4] hover:bg-[#F2F2F2] transition-colors cursor-pointer shadow-xs"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-teal-600" />
+              <span>Project Assets</span>
+            </button>
+          )}
           <span className="text-[11px] font-medium text-[#525252]">{agentName}</span>
           {onOpenSettings && (
             <button
@@ -507,7 +530,12 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           >
             {/* Layer 1: The Live Artifact Viewer */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
-              <ArtifactViewer artifact={artifact} className="w-full h-full pointer-events-none select-none" />
+              <ArtifactViewer
+                artifact={artifact}
+                onOpenAssetPicker={onOpenAssetPicker}
+                onOpenSettings={onOpenSettings}
+                className="w-full h-full pointer-events-none select-none"
+              />
             </div>
 
             {/* Layer 2: Dedicated Transparent Drawing Surface on TOP */}

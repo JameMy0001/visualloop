@@ -7,6 +7,7 @@ import { useVisualLoopStore } from "./state/useVisualLoopStore";
 import { MiniOverlay } from "./components/MiniOverlay";
 import { ExpandedEditor } from "./components/ExpandedEditor";
 import { SettingsModal } from "./components/SettingsModal";
+import { AssetPickerModal } from "./components/AssetPickerModal";
 
 export const App: React.FC = () => {
   const {
@@ -31,13 +32,18 @@ export const App: React.FC = () => {
   } = useVisualLoopStore();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = useState<boolean>(false);
 
-  // Escape key handling to close settings modal or collapse expanded window
+  // Escape key handling to close modals or collapse expanded window
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (isSettingsOpen) {
           setIsSettingsOpen(false);
+          return;
+        }
+        if (isAssetPickerOpen) {
+          setIsAssetPickerOpen(false);
           return;
         }
         if (mode === "expanded") {
@@ -47,7 +53,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, setMode, isSettingsOpen]);
+  }, [mode, setMode, isSettingsOpen, isAssetPickerOpen]);
 
   // Active session details
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
@@ -95,6 +101,7 @@ export const App: React.FC = () => {
           onExpand={() => setMode("expanded")}
           onToggleClickThrough={toggleClickThrough}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenAssetPicker={() => setIsAssetPickerOpen(true)}
           onClose={handleClose}
         />
       ) : mode === "expanded" ? (
@@ -105,6 +112,7 @@ export const App: React.FC = () => {
           onAcceptNewRevision={acceptNewRevision}
           onShrink={() => setMode("mini")}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenAssetPicker={() => setIsAssetPickerOpen(true)}
           onClose={handleClose}
           onSubmitFeedback={handleSubmitFeedback}
           feedbackStatus={feedbackStatus}
@@ -119,6 +127,13 @@ export const App: React.FC = () => {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      {/* Workspace Visual Assets Discovery & Selection Modal */}
+      <AssetPickerModal
+        isOpen={isAssetPickerOpen}
+        onClose={() => setIsAssetPickerOpen(false)}
+        defaultWorkspaceRoot={activeSession?.workspaceRoot}
       />
     </main>
   );

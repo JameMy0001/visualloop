@@ -22,17 +22,37 @@ export async function loadArtifact(
   const verifiedPath = validateArtifactPath(workspaceRoot, entrypoint);
   const ext = path.extname(verifiedPath).toLowerCase();
 
+  const isImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(ext);
+  const isSvg = ext === ".svg";
+  const isHtml = [".html", ".htm"].includes(ext);
+
   const kind: ArtifactKind =
-    explicitKind || (ext === ".svg" ? "svg" : "html");
+    explicitKind || (isSvg ? "svg" : isImage ? "image" : isHtml ? "html" : "html");
 
   const rawBuffer = fs.readFileSync(verifiedPath);
-  const rawContent = rawBuffer.toString("utf-8");
   const contentHash = crypto.createHash("sha256").update(rawBuffer).digest("hex");
 
-  let content = rawContent;
-  if (kind === "svg") {
+  let content = "";
+  let rawContent = "";
+
+  if (kind === "image") {
+    const mime =
+      ext === ".png"
+        ? "image/png"
+        : ext === ".jpg" || ext === ".jpeg"
+        ? "image/jpeg"
+        : ext === ".webp"
+        ? "image/webp"
+        : ext === ".gif"
+        ? "image/gif"
+        : "image/png";
+    content = `data:${mime};base64,${rawBuffer.toString("base64")}`;
+    rawContent = content;
+  } else if (kind === "svg") {
+    rawContent = rawBuffer.toString("utf-8");
     content = sanitizeSvg(rawContent);
   } else {
+    rawContent = rawBuffer.toString("utf-8");
     content = generateSandboxedHtml(rawContent, {
       allowInlineScripts: true,
       allowInlineStyles: true,

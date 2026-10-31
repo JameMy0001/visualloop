@@ -1,14 +1,17 @@
 import Fastify, { FastifyInstance } from "fastify";
+import path from "node:path";
 import {
   SessionRegistrationSchema,
   ArtifactPublicationSchema,
   FeedbackSubmissionSchema,
   ProviderConfigSchema,
+  ArtifactKind,
   ServerEvent,
 } from "@visualloop/protocol";
 import { loadArtifact } from "@visualloop/preview-engine";
 import { CoreStore } from "./store.js";
 import { WebSocketManager } from "./websocket.js";
+import { scanWorkspaceAssets } from "./workspaceScanner.js";
 import {
   isValidOrigin,
   resolveOrCreateAuthToken,
@@ -280,6 +283,102 @@ export class CoreServer {
       const { id } = request.params as { id: string };
       const revisions = this.store.getRevisions(id);
       return reply.send({ artifactId: id, revisions });
+    });
+
+    // 2.1 Workspace Assets Discovery & Selection
+    this.fastify.get("/v1/workspace/assets", async (request, reply) => {
+      const query = request.query as { workspaceRoot?: string; limit?: string };
+      let root = query.workspaceRoot;
+      if (!root || !root.trim()) {
+        const snap = this.store.getSnapshot();
+        const active = snap.sessions.find((s) => s.sessionId === snap.activeSessionId);
+        root = active?.workspaceRoot || process.cwd();
+      }
+      const limit = query.limit ? Number(query.limit) : 200;
+      const result = scanWorkspaceAssets(root, limit);
+      return reply.send(result);
+    });
+
+    this.fastify.post("/v1/workspace/select-asset", async (request, reply) => {
+      try {
+        const body = request.body as { entrypoint: string; workspaceRoot?: string };
+        if (!body || !body.entrypoint) {
+          return reply.status(400).send({ error: "Missing 'entrypoint' in request body" });
+        }
+
+        let root = body.workspaceRoot;
+        if (!root || !root.trim()) {
+          const snap = this.store.getSnapshot();
+          const active = snap.sessions.find((s) => s.sessionId === snap.activeSessionId);
+          root = active?.workspaceRoot || process.cwd();
+        }
+
+        const ext = path.extname(body.entrypoint).toLowerCase();
+        const isImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(ext);
+        const isSvg = ext === ".svg";
+        const kind: ArtifactKind = isImage ? "image" : isSvg ? "svg" : "html";
+
+        // Find or create session for this workspace
+        let session = this.store.getSnapshot().sessions.find((s) => s.workspaceRoot === root);
+        if (!session) {
+          session = this.store.registerSession({
+            adapterId: "workspace-explorer",
+            agentName: "Workspace Explorer",
+            workspaceRoot: root,
+          });
+        }
+
+        // Validate and load artifact via preview-engine
+        const loaded = await loadArtifact(root, body.entrypoint, kind);
+        const artifactId = `art_${path.basename(body.entrypoint, ext).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+        const publication = {
+          sessionId: session.sessionId,
+          artifactId,
+          revision: 1,
+          kind: loaded.kind,
+          entrypoint: body.entrypoint,
+          title: path.basename(body.entrypoint),
+          viewport: { width: 1024, height: 768, devicePixelRatio: 2, zoom: 1, scrollX: 0, scrollY: 0 },
+        };
+
+        const revision = this.store.publishArtifact(publication, loaded.contentHash, loaded.content);
+
+        // Broadcast real-time events to all connected clients
+        this.ws.broadcast({
+          type: "artifact.published",
+          timestamp: new Date().toISOString(),
+          payload: publication,
+        });
+
+        this.ws.broadcast({
+          type: "preview.ready",
+          timestamp: new Date().toISOString(),
+          payload: {
+            sessionId: publication.sessionId,
+            artifactId: publication.artifactId,
+            revision: revision.revision,
+            kind: publication.kind,
+            title: publication.title,
+            entrypoint: publication.entrypoint,
+            content: loaded.content,
+          },
+        });
+
+        this.ws.broadcast({
+          type: "revision.published",
+          timestamp: new Date().toISOString(),
+          payload: revision,
+        });
+
+        return reply.status(200).send({
+          success: true,
+          publication,
+          revision,
+        });
+      } catch (err: any) {
+        return reply.status(400).send({ error: err.message });
+      }
     });
 
     // 3. Feedback Submission

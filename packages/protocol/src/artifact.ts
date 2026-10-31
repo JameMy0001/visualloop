@@ -1,7 +1,18 @@
 import { z } from "zod";
 
-export const ArtifactKindSchema = z.enum(["svg", "html"]);
+export const ArtifactKindSchema = z.enum(["svg", "html", "image", "slide", "pdf"]);
 export type ArtifactKind = z.infer<typeof ArtifactKindSchema>;
+
+export const WorkspaceAssetSchema = z.object({
+  entrypoint: z.string(),
+  filename: z.string(),
+  kind: ArtifactKindSchema,
+  sizeBytes: z.number(),
+  modifiedAt: z.string(),
+  preview: z.string().optional(),
+});
+
+export type WorkspaceAsset = z.infer<typeof WorkspaceAssetSchema>;
 
 export const ViewportSchema = z.object({
   width: z.number().positive(),

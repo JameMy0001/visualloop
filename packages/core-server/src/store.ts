@@ -6,6 +6,7 @@ import {
   SessionRegistration,
   ArtifactPublication,
   ArtifactRevisionRecord,
+  ArtifactKind,
   FeedbackSubmission,
   FeedbackStatus,
   DeliveryReceipt,
@@ -17,7 +18,7 @@ export interface RuntimeSnapshot {
     sessionId: string;
     artifactId: string;
     revision: number;
-    kind: "svg" | "html";
+    kind: ArtifactKind;
     title?: string;
     entrypoint: string;
     content?: string;

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useMemo } from "react";
-import { Settings } from "lucide-react";
+import { Settings, FolderOpen } from "lucide-react";
 import { sanitizeSvg, generateSandboxedHtml } from "@visualloop/preview-engine/sanitizer";
 import { ActiveArtifactInfo } from "../services/coreClient";
 
@@ -9,6 +9,7 @@ interface ArtifactViewerProps {
   onDimensionsReady?: (dims: { width: number; height: number }) => void;
   showEmptyStatePrompt?: boolean;
   onOpenSettings?: () => void;
+  onOpenAssetPicker?: () => void;
 }
 
 export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
@@ -17,6 +18,7 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
   onDimensionsReady,
   showEmptyStatePrompt = true,
   onOpenSettings,
+  onOpenAssetPicker,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -27,9 +29,13 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
     }
   }, [onDimensionsReady, artifact]);
 
-  // Sanitize SVG or wrap HTML in sandboxed CSP container
+  // Sanitize SVG or wrap HTML in sandboxed CSP container or pass through image data URL
   const renderedContent = useMemo(() => {
     if (!artifact?.content) return null;
+
+    if (artifact.kind === "image") {
+      return artifact.content;
+    }
 
     if (artifact.kind === "svg") {
       return sanitizeSvg(artifact.content);
@@ -66,24 +72,34 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
           </svg>
         </div>
         <div className="text-xs font-semibold text-[#171717] mb-1 tracking-tight">
-          Waiting for an agent
+          Waiting for an artifact
         </div>
-        <p className="text-[11px] text-[#525252] max-w-[220px] leading-relaxed mb-3">
-          Connect an agent and publish an SVG or HTML file to preview here.
+        <p className="text-[11px] text-[#525252] max-w-[240px] leading-relaxed mb-3">
+          Select an image, slide, SVG, or HTML file from your project to review and circle.
         </p>
-        <code className="text-[10px] text-[#525252] bg-[#F0F0F0] px-2 py-1 rounded border border-[#E5E5E5] font-mono select-all">
-          visualloop publish &lt;file&gt;
-        </code>
-        {onOpenSettings && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-[#171717] bg-[#FFFFFF] border border-[#D4D4D4] rounded-[6px] hover:bg-[#F5F5F5] transition-colors cursor-pointer shadow-xs"
-          >
-            <Settings className="w-3 h-3 text-[#737373]" />
-            <span>Configure AI API Key</span>
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {onOpenAssetPicker && (
+            <button
+              type="button"
+              onClick={onOpenAssetPicker}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#FFFFFF] bg-[#14B8A6] hover:bg-[#0D9488] rounded-[6px] transition-colors cursor-pointer shadow-xs"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>Browse Project Assets</span>
+            </button>
+          )}
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-[#171717] bg-[#FFFFFF] border border-[#D4D4D4] rounded-[6px] hover:bg-[#F5F5F5] transition-colors cursor-pointer shadow-xs"
+            >
+              <Settings className="w-3 h-3 text-[#737373]" />
+              <span>Settings</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -97,6 +113,12 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
         <div
           className="w-full h-full flex items-center justify-center p-2 [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto"
           dangerouslySetInnerHTML={{ __html: renderedContent }}
+        />
+      ) : artifact.kind === "image" ? (
+        <img
+          src={renderedContent}
+          alt={artifact.title || "Image Artifact"}
+          className="max-w-full max-h-full object-contain pointer-events-none select-none rounded-lg"
         />
       ) : (
         <iframe

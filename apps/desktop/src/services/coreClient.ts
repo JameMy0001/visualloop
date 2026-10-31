@@ -1,4 +1,4 @@
-import { FeedbackSubmission, SessionHandle, ProviderConfig, ProviderInfo } from "@visualloop/protocol";
+import { FeedbackSubmission, SessionHandle, ProviderConfig, ProviderInfo, ArtifactKind, WorkspaceAsset } from "@visualloop/protocol";
 
 export interface ServiceHealth {
   status: string;
@@ -10,7 +10,7 @@ export interface ActiveArtifactInfo {
   sessionId: string;
   artifactId: string;
   revision: number;
-  kind: "svg" | "html";
+  kind: ArtifactKind;
   title?: string;
   entrypoint: string;
   content?: string;
@@ -121,6 +121,34 @@ export class CoreClient {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `Save provider config failed: HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+  public async getWorkspaceAssets(
+    workspaceRoot?: string,
+    limit = 200
+  ): Promise<{ workspaceRoot: string; totalAssets: number; assets: WorkspaceAsset[] }> {
+    const params = new URLSearchParams();
+    if (workspaceRoot) params.set("workspaceRoot", workspaceRoot);
+    if (limit) params.set("limit", String(limit));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await this.fetchWithAuth(`${this.baseUrl}/v1/workspace/assets${qs}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`Failed to scan workspace assets: HTTP ${res.status}`);
+    return res.json();
+  }
+
+  public async selectWorkspaceAsset(entrypoint: string, workspaceRoot?: string): Promise<any> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}/v1/workspace/select-asset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entrypoint, workspaceRoot }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to select workspace asset: HTTP ${res.status}`);
     }
     return res.json();
   }

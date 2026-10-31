@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SessionHandleSchema } from "./session.js";
-import { ArtifactPublicationSchema, ArtifactRevisionRecordSchema } from "./artifact.js";
+import { ArtifactPublicationSchema, ArtifactRevisionRecordSchema, ArtifactKindSchema } from "./artifact.js";
 import { FeedbackSubmissionSchema, DeliveryReceiptSchema } from "./feedback.js";
 import { WindowStateSchema } from "./window.js";
 import { ProviderInfoSchema } from "./provider.js";
@@ -48,7 +48,7 @@ export const ServerEventSchema = z.discriminatedUnion("type", [
       sessionId: z.string().optional(),
       revision: z.number(),
       entrypoint: z.string(),
-      kind: z.enum(["svg", "html"]).optional(),
+      kind: ArtifactKindSchema.optional(),
       title: z.string().optional(),
       content: z.string().optional(),
     }),
@@ -95,7 +95,7 @@ export const ServerEventSchema = z.discriminatedUnion("type", [
           sessionId: z.string(),
           artifactId: z.string(),
           revision: z.number(),
-          kind: z.enum(["svg", "html"]),
+          kind: ArtifactKindSchema,
           title: z.string().optional(),
           entrypoint: z.string(),
           content: z.string().optional(),

@@ -8,7 +8,20 @@ export class SecurityPathError extends Error {
   }
 }
 
-const ALLOWED_EXTENSIONS = new Set([".svg", ".html", ".htm", ".css", ".js"]);
+const ALLOWED_EXTENSIONS = new Set([
+  ".svg",
+  ".html",
+  ".htm",
+  ".css",
+  ".js",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".bmp",
+  ".pdf",
+]);
 
 /**
  * Validates that an artifact path belongs to an explicitly allowed workspace root.
