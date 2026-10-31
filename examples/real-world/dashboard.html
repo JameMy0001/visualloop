@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Adherence Analytics — Production Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #090d16;
+      color: #f1f5f9;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #1e293b;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(20, 184, 166, 0.15);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+      color: #2dd4bf;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .header-title-group h1 { font-size: 20px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 10px; }
+    .status-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .header-subtitle { font-size: 13px; color: #94a3b8; margin-top: 2px; }
+    .header-actions { display: flex; gap: 10px; }
+    .btn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+    }
+    .btn-secondary:hover { background: #334155; }
+    .btn-primary {
+      background: #14b8a6;
+      color: #042f2e;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(20, 184, 166, 0.25);
+    }
+    .btn-primary:hover { background: #2dd4bf; }
+
+    /* KPI Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      backdrop-filter: blur(8px);
+    }
+    .card-top { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #94a3b8; font-weight: 500; }
+    .trend-up { color: #34d399; font-weight: 600; font-size: 11px; }
+    .trend-warning { color: #fbbf24; font-weight: 600; font-size: 11px; }
+    .card-metric { font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 10px; }
+    .card-metric.highlight { color: #5eead4; }
+    .card-metric.warning { color: #fde047; }
+    .card-subtext {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .dot-green { background: #34d399; }
+    .dot-teal { background: #2dd4bf; }
+    .dot-amber { background: #fbbf24; }
+    .dot-purple { background: #a855f7; }
+
+    /* Trend Section */
+    .chart-card { display: flex; flex-direction: column; gap: 14px; }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; }
+    .chart-title { font-size: 15px; font-weight: 600; color: #ffffff; }
+    .chart-desc { font-size: 12px; color: #94a3b8; }
+    .chart-legend { display: flex; gap: 14px; font-size: 11px; color: #94a3b8; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-pill { width: 14px; height: 4px; border-radius: 2px; }
+    .pill-teal { background: #2dd4bf; }
+    .pill-slate { background: #475569; }
+
+    .chart-bars-container {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      height: 140px;
+      display: flex;
+      align-items: flex-end;
+      padding: 16px 12px 10px;
+      gap: 8px;
+    }
+    .chart-col {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 4px;
+    }
+    .chart-bar {
+      width: 100%;
+      border-radius: 4px 4px 0 0;
+      background: rgba(20, 184, 166, 0.35);
+      border-top: 2px solid #2dd4bf;
+      transition: all 0.2s ease;
+    }
+    .chart-bar:hover {
+      background: rgba(20, 184, 166, 0.7);
+      filter: drop-shadow(0 0 6px rgba(45, 212, 191, 0.5));
+    }
+    .chart-col-label { font-size: 10px; color: #64748b; }
+
+    /* Table Section */
+    .table-card { padding: 0; overflow: hidden; }
+    .table-header { padding: 16px 20px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; }
+    .table-title { font-size: 15px; font-weight: 600; color: #ffffff; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th {
+      background: rgba(2, 6, 23, 0.8);
+      padding: 12px 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #1e293b;
+    }
+    td { padding: 14px 20px; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(30, 41, 59, 0.4); }
+    .patient-id { font-weight: 600; color: #ffffff; }
+    .patient-sub { font-size: 11px; color: #94a3b8; font-weight: 400; display: block; margin-top: 2px; }
+    .progress-wrap { display: flex; align-items: center; gap: 8px; }
+    .progress-bar { width: 80px; height: 6px; border-radius: 9999px; background: #334155; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 9999px; }
+    .fill-green { background: #34d399; }
+    .fill-amber { background: #fbbf24; }
+    .badge-alert {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(244, 63, 94, 0.15);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.25);
+    }
+    .badge-ok {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .action-link {
+      color: #2dd4bf;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .action-link:hover { text-decoration: underline; color: #5eead4; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Header -->
+    <header>
+      <div class="header-left">
+        <div class="brand-logo">Y</div>
+        <div class="header-title-group">
+          <h1>Clinical Adherence Portal <span class="status-badge">Live Production</span></h1>
+          <div class="header-subtitle">Real-time patient adherence monitoring, dose verification, and risk stratification</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary">Filter: Last 30 Days</button>
+        <button class="btn btn-primary">Export Report</button>
+      </div>
+    </header>
+
+    <!-- Key Metrics Grid -->
+    <div class="metrics-grid">
+      <div class="card">
+        <div class="card-top">
+          <span>Active Monitored Patients</span>
+          <span class="trend-up">+12% vs last mo</span>
+        </div>
+        <div class="card-metric">1,428</div>
+        <div class="card-subtext">
+          <span class="dot dot-green"></span>
+          <span>94.8% sync rate across smart dispensers</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span>Overall Adherence Rate</span>
+          <span class="trend-up">+3.4%</span>
+        </div>
+        <div class="card-metric highlight">86.4%</div>
+        <div class="card-subtext">
+          <span class="dot dot-teal"></span>
+          <span>Target clinical benchmark: 80.0%</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span>Missed Dose Alerts</span>
+          <span class="trend-warning">Requires follow-up</span>
+        </div>
+        <div class="card-metric warning">38</div>
+        <div class="card-subtext">
+          <span class="dot dot-amber"></span>
+          <span>14 patients in high-risk cohort</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span>Mean Verification Latency</span>
+          <span class="trend-up">-180ms</span>
+        </div>
+        <div class="card-metric">412 ms</div>
+        <div class="card-subtext">
+          <span class="dot dot-purple"></span>
+          <span>Edge computer vision check</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Visual Trend Section -->
+    <div class="card chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Daily Adherence Rate & Dose Verification Trend</div>
+          <div class="chart-desc">30-day compliance rolling average vs daily dose confirmation</div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-pill pill-teal"></span> Actual Taken</div>
+          <div class="legend-item"><span class="legend-pill pill-slate"></span> Prescribed Schedule</div>
+        </div>
+      </div>
+
+      <div class="chart-bars-container">
+        <div class="chart-col"><div class="chart-bar" style="height: 72%;"></div><span class="chart-col-label">D1</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 80%;"></div><span class="chart-col-label">D3</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 85%;"></div><span class="chart-col-label">D5</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 78%;"></div><span class="chart-col-label">D7</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 90%;"></div><span class="chart-col-label">D9</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 84%;"></div><span class="chart-col-label">D11</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 88%;"></div><span class="chart-col-label">D13</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 76%;"></div><span class="chart-col-label">D15</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 82%;"></div><span class="chart-col-label">D17</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 92%;"></div><span class="chart-col-label">D19</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 95%;"></div><span class="chart-col-label">D21</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 86%;"></div><span class="chart-col-label">D23</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 91%;"></div><span class="chart-col-label">D25</span></div>
+        <div class="chart-col"><div class="chart-bar" style="height: 89%;"></div><span class="chart-col-label">D27</span></div>
+      </div>
+    </div>
+
+    <!-- Patient Cohort Table -->
+    <div class="card table-card">
+      <div class="table-header">
+        <div class="table-title">High Priority Patient Cohort</div>
+        <span style="font-size: 11px; color: #94a3b8;">Sorted by non-adherence risk index</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Patient ID</th>
+            <th>Regimen / Medication</th>
+            <th>Compliance Rate</th>
+            <th>Last Dose Status</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="patient-id">#PT-8942</span>
+              <span class="patient-sub">Somchai P. (Age 64)</span>
+            </td>
+            <td>Metformin 500mg BID + Losartan 50mg</td>
+            <td>
+              <div class="progress-wrap">
+                <div class="progress-bar"><div class="progress-fill fill-amber" style="width: 68%;"></div></div>
+                <span style="font-size: 12px; font-weight: 600; color: #fbbf24;">68%</span>
+              </div>
+            </td>
+            <td><span class="badge-alert">Missed Morning Dose</span></td>
+            <td style="text-align: right;"><a class="action-link">Contact Caregiver</a></td>
+          </tr>
+          <tr>
+            <td>
+              <span class="patient-id">#PT-9104</span>
+              <span class="patient-sub">Apinya K. (Age 52)</span>
+            </td>
+            <td>Atorvastatin 20mg QPM</td>
+            <td>
+              <div class="progress-wrap">
+                <div class="progress-bar"><div class="progress-fill fill-green" style="width: 96%;"></div></div>
+                <span style="font-size: 12px; font-weight: 600; color: #34d399;">96%</span>
+              </div>
+            </td>
+            <td><span class="badge-ok">Verified Taken (08:14 AM)</span></td>
+            <td style="text-align: right;"><a class="action-link">View Dose Log</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</body>
+</html>

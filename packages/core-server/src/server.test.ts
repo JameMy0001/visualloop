@@ -184,4 +184,37 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
     expect(checked.hasApiKey).toBe(true);
     expect(checked.maskedApiKey).toBe(updated.maskedApiKey);
   });
+
+  it("handles CORS preflight OPTIONS requests and sets Access-Control headers for Tauri", async () => {
+    // 1. Preflight OPTIONS request from tauri://localhost without auth header
+    const preflightRes = await fetch(`${baseUrl}/v1/feedback`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "tauri://localhost",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type,x-visualloop-token",
+      },
+    });
+    expect(preflightRes.status).toBe(204);
+    expect(preflightRes.headers.get("access-control-allow-origin")).toBe("tauri://localhost");
+    expect(preflightRes.headers.get("access-control-allow-methods")).toContain("POST");
+    expect(preflightRes.headers.get("access-control-allow-headers")).toContain("Authorization");
+
+    // 2. Preflight from untrusted origin is rejected with 403
+    const badOriginRes = await fetch(`${baseUrl}/v1/feedback`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://malicious-site.com",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+    expect(badOriginRes.status).toBe(403);
+
+    // 3. Standard GET request receives Access-Control-Allow-Origin header
+    const healthRes = await fetch(`${baseUrl}/v1/health`, {
+      headers: { Origin: "tauri://localhost" },
+    });
+    expect(healthRes.status).toBe(200);
+    expect(healthRes.headers.get("access-control-allow-origin")).toBe("tauri://localhost");
+  });
 });

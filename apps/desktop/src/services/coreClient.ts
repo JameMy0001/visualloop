@@ -49,7 +49,19 @@ export class CoreClient {
       headers["x-visualloop-token"] = this.token;
       headers["Authorization"] = `Bearer ${this.token}`;
     }
-    return fetch(url, { ...options, headers });
+    try {
+      return await fetch(url, { ...options, headers });
+    } catch (err: any) {
+      if (
+        err.name === "TypeError" &&
+        (err.message === "Load failed" || err.message === "Failed to fetch")
+      ) {
+        throw new Error(
+          `Cannot connect to VisualLoop server at ${this.baseUrl}. Please verify the server is running.`
+        );
+      }
+      throw err;
+    }
   }
 
   public async getHealth(): Promise<ServiceHealth> {

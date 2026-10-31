@@ -103,7 +103,7 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
           title={artifact.title || "Artifact Preview"}
           sandbox="allow-scripts"
           srcDoc={renderedContent}
-          className="w-full h-full border-0 rounded-lg pointer-events-auto"
+          className="w-full h-full border-0 rounded-lg pointer-events-none select-none"
         />
       )}
     </div>

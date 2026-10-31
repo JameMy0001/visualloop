@@ -2,6 +2,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { GeminiCliAdapter, applyRevisionSafely, providerConfigFromEnv, hasModelCredentials, generateRevisionWithProvider } from "@visualloop/adapter-gemini-cli";
 
+function findWorkspaceRoot(filePath: string): string {
+  if (process.env.VISUALLOOP_WORKSPACE && fs.existsSync(process.env.VISUALLOOP_WORKSPACE)) {
+    return path.resolve(process.env.VISUALLOOP_WORKSPACE);
+  }
+  let dir = path.dirname(path.resolve(filePath));
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, ".git"))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return path.dirname(path.resolve(filePath));
+}
+
 function countLines(str: string): number {
   return str.split("\n").length;
 }
@@ -10,19 +24,13 @@ async function main() {
   const targetFileArg = process.argv[2] || "examples/solar-system.svg";
   const targetFilePath = path.resolve(process.cwd(), targetFileArg);
 
-  // Security: Protect against escaping the current workspace root
-  const workspaceRoot = process.cwd();
-  if (!targetFilePath.startsWith(workspaceRoot)) {
-    console.error(
-      `[Security Error] Target path "${targetFilePath}" is outside current workspace "${workspaceRoot}". Operation aborted.`
-    );
-    process.exit(1);
-  }
-
   if (!fs.existsSync(targetFilePath)) {
     console.error(`Error: Target file not found at ${targetFilePath}`);
     process.exit(1);
   }
+
+  const workspaceRoot = findWorkspaceRoot(targetFilePath);
+  const relativeEntrypoint = path.relative(workspaceRoot, targetFilePath);
 
   const ext = path.extname(targetFilePath).toLowerCase();
   const kind: "svg" | "html" = ext === ".svg" ? "svg" : "html";
@@ -36,9 +44,10 @@ async function main() {
   console.log("==================================================");
   console.log(`Target File:  ${targetFilePath} (${kind.toUpperCase()})`);
   console.log(`Workspace:    ${workspaceRoot}`);
+  console.log(`Entrypoint:   ${relativeEntrypoint}`);
   console.log(`Core Server:  ${serverUrl}`);
-  console.log(`Provider: ${modelConfig.provider} / ${modelConfig.model}`);
-  console.log(`Credentials: ${hasModelCredentials(modelConfig) ? "CONFIGURED" : "NOT SET (feedback stays pending)"}`);
+  console.log(`Provider:     ${modelConfig.provider} / ${modelConfig.model}`);
+  console.log(`Credentials:  ${hasModelCredentials(modelConfig) ? "CONFIGURED" : "NOT SET (feedback stays pending)"}`);
   console.log("--------------------------------------------------");
 
   const adapter = new GeminiCliAdapter({ serverUrl, secretToken });
@@ -50,7 +59,7 @@ async function main() {
     session = await adapter.registerSession({
       adapterId: "gemini-cli",
       agentName: "Gemini CLI Agent",
-      workspaceRoot: path.dirname(targetFilePath),
+      workspaceRoot: workspaceRoot,
     });
     console.log(`  [OK] Session Registered: ${session.sessionId}`);
   } catch (err: any) {
@@ -70,7 +79,7 @@ async function main() {
     artifactId: `art_${path.basename(filename, ext).replace(/[^a-zA-Z0-9_-]/g, "_")}`,
     revision: currentRevision,
     kind,
-    entrypoint: filename,
+    entrypoint: relativeEntrypoint,
     viewport: { width: 1024, height: 768, devicePixelRatio: 2, zoom: 1, scrollX: 0, scrollY: 0 },
   });
   console.log(
@@ -150,7 +159,7 @@ async function main() {
           artifactId: feedback.artifactId,
           revision: currentRevision,
           kind,
-          entrypoint: filename,
+          entrypoint: relativeEntrypoint,
           viewport: feedback.viewport,
         });
         console.log(

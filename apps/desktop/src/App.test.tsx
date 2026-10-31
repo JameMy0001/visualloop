@@ -88,14 +88,14 @@ describe("VisualLoop Desktop Shell logic", () => {
   it("persists and switches AI provider configuration in local storage", () => {
     const geminiConfig = {
       provider: "gemini",
-      model: "gemini-3.8-flash",
+      model: "gemini-2.5-flash",
       apiKey: "AIzaSyTestKey12345",
     };
     mockStorage.setItem("visualloop_provider_config", JSON.stringify(geminiConfig));
 
     let parsed = JSON.parse(mockStorage.getItem("visualloop_provider_config")!);
     expect(parsed.provider).toBe("gemini");
-    expect(parsed.model).toBe("gemini-3.8-flash");
+    expect(parsed.model).toBe("gemini-2.5-flash");
     expect(parsed.apiKey).toBe("AIzaSyTestKey12345");
 
     // Switch to OpenAI

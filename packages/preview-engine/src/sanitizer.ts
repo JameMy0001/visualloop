@@ -117,12 +117,12 @@ export function sanitizeSvg(rawSvg: string): string {
 export function generateSandboxedHtml(rawHtml: string, options: SandboxOptions = {}): string {
   const defaultCsp = [
     "default-src 'none'",
-    options.allowInlineStyles !== false ? "style-src 'unsafe-inline' 'self'" : "style-src 'self'",
-    "img-src 'self' data: blob:",
-    options.allowInlineScripts ? "script-src 'unsafe-inline'" : "script-src 'none'",
+    options.allowInlineStyles !== false ? "style-src 'unsafe-inline' 'self' https:" : "style-src 'self' https:",
+    "img-src 'self' data: blob: https:",
+    options.allowInlineScripts ? "script-src 'unsafe-inline' https:" : "script-src 'none' https:",
     "media-src 'self' data:",
     `connect-src ${options.cspConnectSrc || "'none'"}`,
-    "font-src 'self' data:",
+    "font-src 'self' data: https:",
     "frame-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

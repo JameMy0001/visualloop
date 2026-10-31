@@ -65,10 +65,39 @@ export class CoreServer {
   }
 
   private setupRoutes(): void {
+    // Global CORS hook for all incoming requests and preflight OPTIONS
+    this.fastify.addHook("onRequest", async (request, reply) => {
+      const origin = request.headers.origin;
+      if (origin && isValidOrigin(origin)) {
+        reply.header("Access-Control-Allow-Origin", origin);
+        reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+        reply.header(
+          "Access-Control-Allow-Headers",
+          "Content-Type, Authorization, x-visualloop-token, Origin, Accept"
+        );
+        reply.header("Access-Control-Max-Age", "86400");
+      }
+
+      // Handle CORS preflight OPTIONS requests without requiring authentication
+      if (request.method === "OPTIONS") {
+        if (!origin || isValidOrigin(origin)) {
+          return reply.status(204).send();
+        } else {
+          return reply
+            .status(403)
+            .send({ error: "Forbidden: Cross-origin request not permitted" });
+        }
+      }
+    });
+
     // Authentication and origin security hook
     this.fastify.addHook("preHandler", async (request, reply) => {
-      // Exclude health check from token auth so orchestrators can probe readiness
-      if (request.url === "/v1/health" || request.url.startsWith("/v1/health?")) {
+      // Exclude preflight OPTIONS and health check from token auth so orchestrators can probe readiness
+      if (
+        request.method === "OPTIONS" ||
+        request.url === "/v1/health" ||
+        request.url.startsWith("/v1/health?")
+      ) {
         return;
       }
 

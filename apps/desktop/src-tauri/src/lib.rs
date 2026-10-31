@@ -180,11 +180,11 @@ fn mask_key(key: &str) -> String {
 
 fn get_default_model(provider: &str) -> &'static str {
     match provider {
-        "gemini" => "gemini-3.8-flash",
+        "gemini" => "gemini-2.5-flash",
         "openai" => "gpt-4o",
         "anthropic" => "claude-3-7-sonnet-20250219",
         "openai-compatible" => "deepseek-r1",
-        _ => "gemini-3.8-flash",
+        _ => "gemini-2.5-flash",
     }
 }
 

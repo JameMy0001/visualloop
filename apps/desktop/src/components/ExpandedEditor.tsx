@@ -61,9 +61,9 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [generalInstruction, setGeneralInstruction] = useState<string>("");
   const [selectedModelOption, setSelectedModelOption] = useState<string>(() => {
     try {
-      return localStorage.getItem("visualloop_preferred_model") || "gemini:gemini-3.8-flash";
+      return localStorage.getItem("visualloop_preferred_model") || "gemini:gemini-2.5-flash";
     } catch {
-      return "gemini:gemini-3.8-flash";
+      return "gemini:gemini-2.5-flash";
     }
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -503,15 +503,22 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
         <div className="flex-1 relative flex flex-col p-3 bg-[#F5F5F5] overflow-hidden">
           <div
             ref={canvasRef}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            className="relative flex-1 w-full rounded-[10px] overflow-hidden border border-[#E5E5E5] bg-[#FFFFFF] cursor-crosshair select-none"
+            className="relative flex-1 w-full rounded-[10px] overflow-hidden border border-[#E5E5E5] bg-[#FFFFFF] select-none"
           >
-            {/* The Live Artifact Viewer */}
-            <ArtifactViewer artifact={artifact} className="w-full h-full pointer-events-none" />
+            {/* Layer 1: The Live Artifact Viewer */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
+              <ArtifactViewer artifact={artifact} className="w-full h-full pointer-events-none select-none" />
+            </div>
 
-            {/* Rendered Existing Annotations Overlay */}
+            {/* Layer 2: Dedicated Transparent Drawing Surface on TOP */}
+            <div
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              className="absolute inset-0 z-10 cursor-crosshair select-none"
+            />
+
+            {/* Layer 3: Rendered Existing Annotations Overlay */}
             {canvasRef.current &&
               annotations.map((ann, idx) => {
                 const viewport = getViewportDimensions();
@@ -527,7 +534,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                       width: denorm.width,
                       height: denorm.height,
                     }}
-                    className="pointer-events-none"
+                    className="pointer-events-none z-20"
                   >
                     {ann.type === "circle" ? (
                       <div className="w-full h-full rounded-full border-2 border-dashed border-[#E14C45] bg-[#E14C45]/5 relative">
@@ -552,7 +559,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                 );
               })}
 
-            {/* Active Drawing Feedback */}
+            {/* Layer 4: Active Drawing Feedback */}
             {isDrawing && currentRect && (
               <div
                 style={{
@@ -562,7 +569,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                   width: currentRect.width,
                   height: currentRect.height,
                 }}
-                className={`border-2 border-[#E14C45] bg-[#E14C45]/10 pointer-events-none ${
+                className={`border-2 border-[#E14C45] bg-[#E14C45]/10 pointer-events-none z-30 ${
                   activeTool === "circle" ? "rounded-full" : "rounded-[6px]"
                 }`}
               />
@@ -639,12 +646,12 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
               }}
               className="w-full px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] text-xs text-[#171717] focus:outline-none focus:ring-1 focus:ring-[#171717] cursor-pointer shadow-sm"
             >
-              <optgroup label="Google Gemini (v3.8+ Recommended)">
-                <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash (Smartest &amp; Fast)</option>
-                <option value="gemini:gemini-3.8-flash-lite">Gemini 3.8 Flash-Lite</option>
-                <option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash</option>
-                <option value="gemini:gemini-flash-latest">Gemini Flash Latest</option>
-                <option value="gemini:gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+              <optgroup label="Google Gemini">
+                <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash (Fast &amp; Smart)</option>
+                <option value="gemini:gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
+                <option value="gemini:gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (High Speed)</option>
+                <option value="gemini:gemini-1.5-flash">Gemini 1.5 Flash (Stable)</option>
+                <option value="gemini:gemini-1.5-pro">Gemini 1.5 Pro</option>
               </optgroup>
               <optgroup label="OpenAI / ChatGPT">
                 <option value="openai:gpt-4o">GPT-4o (Omni Flagship)</option>

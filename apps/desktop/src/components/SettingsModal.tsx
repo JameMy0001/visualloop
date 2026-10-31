@@ -30,20 +30,20 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: "gemini",
     name: "Google Gemini",
-    defaultModel: "gemini-3.8-flash",
+    defaultModel: "gemini-2.5-flash",
     models: [
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "Smartest & Fast" },
-      { id: "gemini-3.8-flash-lite", name: "Gemini 3.8 Flash-Lite", badge: "High Speed" },
-      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", badge: "Stable" },
-      { id: "gemini-flash-latest", name: "Gemini Flash Latest", badge: "Auto-updating" },
-      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview", badge: "Deep Reasoning" },
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", badge: "Fast & Smart" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "Deep Reasoning" },
+      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", badge: "High Speed" },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", badge: "Stable" },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", badge: "Flagship 1.5" },
     ],
     recommendedModels: [
-      "gemini-3.8-flash",
-      "gemini-3.8-flash-lite",
-      "gemini-3.5-flash",
-      "gemini-flash-latest",
-      "gemini-3.1-pro-preview",
+      "gemini-2.5-flash",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash-lite",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
     ],
     keyPlaceholder: "AIzaSy... or AQ.Ab8...",
     envKeyName: "GEMINI_API_KEY",
@@ -122,7 +122,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
   const [apiKeyInput, setApiKeyInput] = useState<string>("");
-  const [modelInput, setModelInput] = useState<string>("gemini-3.8-flash");
+  const [modelInput, setModelInput] = useState<string>("gemini-2.5-flash");
   const [baseUrlInput, setBaseUrlInput] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
 
@@ -154,7 +154,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (isMounted && info) {
           setActiveInfo(info);
           setSelectedProvider(info.provider);
-          setModelInput(info.model || "gemini-3.8-flash");
+          setModelInput(info.model || "gemini-2.5-flash");
           setBaseUrlInput(info.baseUrl || "");
           setApiKeyInput(""); // Keep input clean; masked key shown in badge
         }
