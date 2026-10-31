@@ -39,14 +39,14 @@ Instead of saying *“make the sun in the solar-system mockup bigger, but leave 
 ## Demo
 
 <div align="center">
-  <img src="docs/assets/visualloop-animated-concept.gif" alt="Animated scripted VisualLoop concept: preview a solar system, draw a circle around the sun, type visual feedback, submit it, and see a revised preview" width="800" />
+  <img src="docs/assets/visualloop-ui-workflow-demo.gif" alt="Animated VisualLoop UI walkthrough: prompt an AI to build a dashboard, inspect the flawed first result in a floating preview, expand and circle three issues, write correction instructions, send feedback, and see a refined second revision" width="800" />
   <br />
-  <a href="docs/assets/visualloop-animated-concept.gif">Open the animated 64-frame GIF directly</a>
+  <a href="docs/assets/visualloop-ui-workflow-demo.gif">View the full animated demo (77 frames, ~17 seconds)</a>
   <br />
-  <sub>Animated 7.7-second concept demonstration with 64 distinct-time frames. This is an illustrated workflow simulation, not screen capture of the actual Tauri app or evidence of a live AI model editing code.</sub>
+  <sub>UI-based animated mock-up built to resemble VisualLoop's existing mini overlay and expanded review editor. The first-pass dashboard, AI prompt screen, cursor actions and revised result are scripted for illustration—not a native screen recording or proof of a live AI API call.</sub>
 </div>
 
-The demo depicts preview → draw a circle → enter feedback → submit → updated revision. The source project supports these stages through a review interface and a connected runner, but this animation is **not a verified native AI execution recording**. For a real end-to-end capture, see [the native demo recording checklist](docs/DEMO_RECORDING.md).
+The walkthrough shows the intended experience: **prompt an AI → review an imperfect first result → open VisualLoop's floating preview → expand and circle three areas → write targeted corrections → send feedback → review an improved revision**. VisualLoop itself is the visual review and feedback layer, not the AI prompt interface shown at the start. The repository supports a separate model runner for revision handling; a genuine native AI-run recording must be verified separately. See the [native demo recording checklist](docs/DEMO_RECORDING.md).
 
 ### What the experience is designed to look like
 
