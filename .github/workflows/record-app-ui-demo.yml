@@ -1,0 +1,54 @@
+name: Record VisualLoop Running UI Demo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/record-app-ui-demo.mjs"
+      - ".github/workflows/record-app-ui-demo.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: visual-demo-capture-main
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Capture verified app UI feedback/revision loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: browser-actions/setup-chrome@v2
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Install and build VisualLoop
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Record running VisualLoop and assert real feedback/revision
+        run: node scripts/record-app-ui-demo.mjs
+      - name: Verify GIF media
+        run: |
+          test -s docs/assets/visualloop-app-capture.gif
+          ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=noprint_wrappers=1 docs/assets/visualloop-app-capture.gif
+          git diff -- README.md
+      - name: Commit verified capture and updated README
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/assets/visualloop-app-capture.gif README.md
+          git commit -m "docs(demo): show captured running VisualLoop UI and real feedback loop"
+          git push origin HEAD:main
