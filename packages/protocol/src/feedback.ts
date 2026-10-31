@@ -64,6 +64,8 @@ export const FeedbackSubmissionSchema = z
     viewport: ViewportSchema,
     annotations: z.array(AnnotationSchema).default([]),
     generalInstruction: z.string().optional(),
+    preferredModel: z.string().optional(),
+    preferredProvider: z.string().optional(),
     originalScreenshotPath: z.string().optional(),
     annotatedScreenshotPath: z.string().optional(),
     originalScreenshotDataUrl: z.string().optional(),

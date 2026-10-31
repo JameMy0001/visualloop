@@ -3,6 +3,7 @@ import { SessionHandleSchema } from "./session.js";
 import { ArtifactPublicationSchema, ArtifactRevisionRecordSchema } from "./artifact.js";
 import { FeedbackSubmissionSchema, DeliveryReceiptSchema } from "./feedback.js";
 import { WindowStateSchema } from "./window.js";
+import { ProviderInfoSchema } from "./provider.js";
 
 export const EventTypeSchema = z.enum([
   "session.registered",
@@ -15,6 +16,7 @@ export const EventTypeSchema = z.enum([
   "revision.published",
   "window.state_changed",
   "state.snapshot",
+  "provider.updated",
 ]);
 
 export type EventType = z.infer<typeof EventTypeSchema>;
@@ -102,6 +104,11 @@ export const ServerEventSchema = z.discriminatedUnion("type", [
         .optional(),
       sessions: z.array(SessionHandleSchema).optional(),
     }),
+  }),
+  z.object({
+    type: z.literal("provider.updated"),
+    timestamp: z.string().datetime(),
+    payload: ProviderInfoSchema,
   }),
 ]);
 

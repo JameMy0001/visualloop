@@ -95,8 +95,16 @@ async function main() {
 
     const currentCode = fs.readFileSync(targetFilePath, "utf-8");
 
-    if (hasModelCredentials(modelConfig)) {
-      console.log(`\n[AI Active] Calling ${modelConfig.provider} with annotations and screenshot...`);
+    const effectiveProvider = feedback.preferredProvider || modelConfig.provider;
+    const effectiveModel = feedback.preferredModel || modelConfig.model;
+    const effectiveConfig = {
+      ...modelConfig,
+      provider: effectiveProvider,
+      model: effectiveModel,
+    };
+
+    if (hasModelCredentials(effectiveConfig)) {
+      console.log(`\n[AI Active] Calling ${effectiveConfig.provider} (${effectiveConfig.model}) with annotations and screenshot...`);
 
       try {
         const providerResult = await generateRevisionWithProvider({
@@ -108,7 +116,7 @@ async function main() {
             adapter.formatFeedbackPrompt(feedback),
           ].join("\n\n"),
           screenshotDataUrl: feedback.annotatedScreenshotDataUrl,
-        }, modelConfig);
+        }, effectiveConfig);
         const revisedCode = providerResult.source;
         const modelUsed = providerResult.provider + "/" + providerResult.model;
 

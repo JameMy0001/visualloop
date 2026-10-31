@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { FeedbackSubmission } from "@visualloop/protocol";
 import { tauriBridge } from "./services/tauriBridge";
 import { coreClient } from "./services/coreClient";
@@ -6,6 +6,7 @@ import { useWindowState } from "./hooks/useWindowState";
 import { useVisualLoopStore } from "./state/useVisualLoopStore";
 import { MiniOverlay } from "./components/MiniOverlay";
 import { ExpandedEditor } from "./components/ExpandedEditor";
+import { SettingsModal } from "./components/SettingsModal";
 
 export const App: React.FC = () => {
   const {
@@ -29,16 +30,24 @@ export const App: React.FC = () => {
     acceptNewRevision,
   } = useVisualLoopStore();
 
-  // Escape key handling to collapse expanded window
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+
+  // Escape key handling to close settings modal or collapse expanded window
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && mode === "expanded") {
-        setMode("mini");
+      if (e.key === "Escape") {
+        if (isSettingsOpen) {
+          setIsSettingsOpen(false);
+          return;
+        }
+        if (mode === "expanded") {
+          setMode("mini");
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, setMode]);
+  }, [mode, setMode, isSettingsOpen]);
 
   // Active session details
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
@@ -85,6 +94,7 @@ export const App: React.FC = () => {
           clickThrough={clickThrough}
           onExpand={() => setMode("expanded")}
           onToggleClickThrough={toggleClickThrough}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onClose={handleClose}
         />
       ) : mode === "expanded" ? (
@@ -94,6 +104,7 @@ export const App: React.FC = () => {
           staleRevisionAvailable={staleRevisionAvailable}
           onAcceptNewRevision={acceptNewRevision}
           onShrink={() => setMode("mini")}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onClose={handleClose}
           onSubmitFeedback={handleSubmitFeedback}
           feedbackStatus={feedbackStatus}
@@ -103,6 +114,12 @@ export const App: React.FC = () => {
           VisualLoop is hidden. Press ⌘+Shift+V to reopen.
         </div>
       )}
+
+      {/* Global AI Provider Configuration Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </main>
   );
 };

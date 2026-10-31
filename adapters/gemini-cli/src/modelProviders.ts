@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 /**
  * Optional provider transports for VisualLoop's existing feedback/revision runner.
  * Provider output is UNTRUSTED source: the caller must validate, back up and
@@ -19,7 +22,7 @@ export interface ProviderOutput { provider: string; model: string; source: strin
 
 const plugins = new Map<string, ProviderPlugin>();
 const defaults: Record<string, string> = {
-  gemini: "gemini-2.5-flash",
+  gemini: "gemini-3.8-flash",
   openai: "gpt-4.1-mini",
   anthropic: "claude-sonnet-4-5",
 };
@@ -31,14 +34,41 @@ const keyNames: Record<string, string> = {
 };
 
 export function providerConfigFromEnv(env: NodeJS.ProcessEnv = process.env): ProviderConfig {
-  const provider = (env.VISUALLOOP_AI_PROVIDER || "gemini").trim().toLowerCase();
-  const model = env.VISUALLOOP_AI_MODEL || (provider === "gemini" ? env.GEMINI_MODEL : undefined) || defaults[provider];
+  let fileConfig: any = {};
+  try {
+    const configPath =
+      env.VISUALLOOP_CONFIG_PATH ||
+      (env.HOME || env.USERPROFILE
+        ? path.join(env.HOME || env.USERPROFILE!, ".visualloop", "provider_config.json")
+        : "");
+    if (configPath && fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, "utf-8");
+      fileConfig = JSON.parse(raw);
+    }
+  } catch {
+    // Ignore config file read errors and proceed to env checks
+  }
+
+  const provider = (env.VISUALLOOP_AI_PROVIDER || fileConfig.provider || "gemini").trim().toLowerCase();
+  const model =
+    env.VISUALLOOP_AI_MODEL ||
+    (provider === "gemini" ? env.GEMINI_MODEL : undefined) ||
+    fileConfig.providerModels?.[provider] ||
+    (fileConfig.provider === provider ? fileConfig.model : undefined) ||
+    defaults[provider];
+
   if (!model) throw new Error("Set VISUALLOOP_AI_MODEL to select a model for " + provider);
+
+  const envKey = env[keyNames[provider] || "VISUALLOOP_AI_API_KEY"];
+  const fileKey =
+    fileConfig.providerKeys?.[provider] ||
+    (fileConfig.provider === provider ? fileConfig.apiKey : undefined);
+
   return {
     provider,
     model,
-    apiKey: env[keyNames[provider] || "VISUALLOOP_AI_API_KEY"],
-    baseUrl: env.OPENAI_COMPATIBLE_BASE_URL,
+    apiKey: envKey || fileKey,
+    baseUrl: env.OPENAI_COMPATIBLE_BASE_URL || fileConfig.baseUrl,
   };
 }
 

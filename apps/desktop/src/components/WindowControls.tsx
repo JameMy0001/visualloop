@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUpRight, Minimize2, X, MousePointer } from "lucide-react";
+import { ArrowUpRight, Minimize2, X, MousePointer, Settings } from "lucide-react";
 import { WindowMode, WindowState } from "@visualloop/protocol";
 import { tauriBridge } from "../services/tauriBridge";
 
@@ -10,6 +10,7 @@ interface WindowControlsProps {
   clickThrough?: boolean;
   onToggleExpand: () => void;
   onToggleClickThrough?: () => void;
+  onOpenSettings?: () => void;
   onClose: () => void;
 }
 
@@ -19,6 +20,7 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
   clickThrough = false,
   onToggleExpand,
   onToggleClickThrough,
+  onOpenSettings,
   onClose,
 }) => {
   const isMini = mode === "mini";
@@ -85,6 +87,23 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
             }`}
           >
             <MousePointer className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {onOpenSettings && (
+          <button
+            type="button"
+            data-no-drag
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            title="AI Provider Settings"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenSettings();
+            }}
+            className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5" />
           </button>
         )}
 

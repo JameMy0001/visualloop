@@ -3,12 +3,20 @@ import {
   SessionRegistrationSchema,
   ArtifactPublicationSchema,
   FeedbackSubmissionSchema,
+  ProviderConfigSchema,
   ServerEvent,
 } from "@visualloop/protocol";
 import { loadArtifact } from "@visualloop/preview-engine";
 import { CoreStore } from "./store.js";
 import { WebSocketManager } from "./websocket.js";
-import { isValidOrigin, resolveOrCreateAuthToken } from "./security.js";
+import {
+  isValidOrigin,
+  resolveOrCreateAuthToken,
+  resolveCurrentProviderInfo,
+  readProviderConfigFile,
+  writeProviderConfigFile,
+  DEFAULT_PROVIDER_MODELS,
+} from "./security.js";
 
 export interface CoreServerConfig {
   port?: number;
@@ -99,6 +107,60 @@ export class CoreServer {
     // Current State Snapshot
     this.fastify.get("/v1/state", async () => {
       return this.store.getSnapshot();
+    });
+
+    // Provider Configuration (GET /v1/config/provider)
+    this.fastify.get("/v1/config/provider", async () => {
+      return resolveCurrentProviderInfo();
+    });
+
+    // Provider Configuration (POST /v1/config/provider)
+    this.fastify.post("/v1/config/provider", async (request, reply) => {
+      try {
+        const body = ProviderConfigSchema.parse(request.body);
+        const existing = readProviderConfigFile() || { provider: "gemini" as const };
+
+        const providerKeys = { ...(existing.providerKeys || {}) };
+        const providerModels = { ...(existing.providerModels || {}) };
+
+        // Handle API key updates
+        if (body.apiKey === "__CLEAR__") {
+          delete providerKeys[body.provider];
+        } else if (body.apiKey && body.apiKey.trim().length > 0 && !body.apiKey.includes("•")) {
+          providerKeys[body.provider] = body.apiKey.trim();
+        }
+
+        const modelToSave =
+          body.model && body.model.trim().length > 0
+            ? body.model.trim()
+            : providerModels[body.provider] || DEFAULT_PROVIDER_MODELS[body.provider] || "gemini-2.5-pro";
+        providerModels[body.provider] = modelToSave;
+
+        const updatedConfig = {
+          provider: body.provider,
+          model: modelToSave,
+          apiKey: providerKeys[body.provider] || "",
+          baseUrl: body.baseUrl !== undefined ? body.baseUrl : existing.baseUrl,
+          providerKeys,
+          providerModels,
+        };
+
+        writeProviderConfigFile(updatedConfig);
+        const updatedInfo = resolveCurrentProviderInfo();
+
+        this.ws.broadcast({
+          type: "provider.updated",
+          timestamp: new Date().toISOString(),
+          payload: updatedInfo,
+        });
+
+        return reply.status(200).send({
+          success: true,
+          ...updatedInfo,
+        });
+      } catch (err: any) {
+        return reply.status(400).send({ error: err.message });
+      }
     });
 
     // 1. Session Registration

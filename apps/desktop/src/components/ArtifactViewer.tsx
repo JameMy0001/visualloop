@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useMemo } from "react";
+import { Settings } from "lucide-react";
 import { sanitizeSvg, generateSandboxedHtml } from "@visualloop/preview-engine/sanitizer";
 import { ActiveArtifactInfo } from "../services/coreClient";
 
@@ -7,6 +8,7 @@ interface ArtifactViewerProps {
   className?: string;
   onDimensionsReady?: (dims: { width: number; height: number }) => void;
   showEmptyStatePrompt?: boolean;
+  onOpenSettings?: () => void;
 }
 
 export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
@@ -14,6 +16,7 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
   className = "",
   onDimensionsReady,
   showEmptyStatePrompt = true,
+  onOpenSettings,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +74,16 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
         <code className="text-[10px] text-[#525252] bg-[#F0F0F0] px-2 py-1 rounded border border-[#E5E5E5] font-mono select-all">
           visualloop publish &lt;file&gt;
         </code>
+        {onOpenSettings && (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-[#171717] bg-[#FFFFFF] border border-[#D4D4D4] rounded-[6px] hover:bg-[#F5F5F5] transition-colors cursor-pointer shadow-xs"
+          >
+            <Settings className="w-3 h-3 text-[#737373]" />
+            <span>Configure AI API Key</span>
+          </button>
+        )}
       </div>
     );
   }

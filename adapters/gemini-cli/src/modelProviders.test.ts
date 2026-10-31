@@ -43,4 +43,30 @@ describe("model provider transports (mocked; no external API calls)", () => {
     registerModelProvider({id:"test-custom",generate:async()=>"<svg></svg>"});
     expect((await generateRevisionWithProvider({prompt:"fix"},{provider:"test-custom",model:"demo"})).source).toBe("<svg></svg>");
   });
+
+  it("reads saved provider configuration from local file fallback", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "visualloop-test-"));
+    const configPath = path.join(tmpDir, "provider_config.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        provider: "anthropic",
+        model: "claude-3-7-sonnet-20250219",
+        apiKey: "sk-ant-from-file-12345",
+      })
+    );
+
+    const config = providerConfigFromEnv({
+      VISUALLOOP_CONFIG_PATH: configPath,
+    });
+    expect(config.provider).toBe("anthropic");
+    expect(config.model).toBe("claude-3-7-sonnet-20250219");
+    expect(config.apiKey).toBe("sk-ant-from-file-12345");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

@@ -11,6 +11,7 @@ import {
   X,
   AlertCircle,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 import {
   Annotation,
@@ -36,6 +37,7 @@ interface ExpandedEditorProps {
   staleRevisionAvailable?: number | null;
   onAcceptNewRevision?: () => void;
   onShrink: () => void;
+  onOpenSettings?: () => void;
   onClose: () => void;
   onSubmitFeedback: (submission: FeedbackSubmission) => Promise<boolean | void>;
   feedbackStatus?: FeedbackUIStatus;
@@ -47,6 +49,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   staleRevisionAvailable,
   onAcceptNewRevision,
   onShrink,
+  onOpenSettings,
   onClose,
   onSubmitFeedback,
   feedbackStatus = "idle",
@@ -56,6 +59,13 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [history, setHistory] = useState<Annotation[][]>([]);
   const [generalInstruction, setGeneralInstruction] = useState<string>("");
+  const [selectedModelOption, setSelectedModelOption] = useState<string>(() => {
+    try {
+      return localStorage.getItem("visualloop_preferred_model") || "gemini:gemini-3.8-flash";
+    } catch {
+      return "gemini:gemini-3.8-flash";
+    }
+  });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -252,6 +262,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     const activeSessionId = artifact?.sessionId || "sess_active";
     const activeArtifactId = artifact?.artifactId || "art_active";
     const activeRevision = artifact?.revision || 1;
+    const [preferredProvider, preferredModel] = selectedModelOption.split(":");
 
     const submission: FeedbackSubmission = {
       protocolVersion: "1.0",
@@ -269,6 +280,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       },
       annotations,
       generalInstruction: generalInstruction.trim() || undefined,
+      preferredProvider,
+      preferredModel,
       originalScreenshotDataUrl,
       annotatedScreenshotDataUrl,
       idempotencyKey: `idem_${Date.now()}`,
@@ -357,6 +370,20 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           onMouseDown={(e) => e.stopPropagation()}
         >
           <span className="text-[11px] font-medium text-[#525252]">{agentName}</span>
+          {onOpenSettings && (
+            <button
+              type="button"
+              data-no-drag
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              onClick={onOpenSettings}
+              title="AI Provider Settings"
+              className="p-1 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
             data-no-drag
@@ -568,6 +595,46 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                 </div>
               ))
             )}
+          </div>
+
+          {/* AI Model Selector */}
+          <div className="pt-2 border-t border-[#E5E5E5]">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-semibold text-[#525252] flex items-center gap-1.5">
+                <span>AI Model</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#171717]/5 text-[#525252] font-mono border border-[#E5E5E5]">
+                  v3.8+
+                </span>
+              </label>
+            </div>
+            <select
+              value={selectedModelOption}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedModelOption(val);
+                try {
+                  localStorage.setItem("visualloop_preferred_model", val);
+                } catch {}
+              }}
+              className="w-full px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] text-xs text-[#171717] focus:outline-none focus:ring-1 focus:ring-[#171717] cursor-pointer shadow-sm"
+            >
+              <optgroup label="Google Gemini (v3.8+ Recommended)">
+                <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash (Smartest &amp; Fast)</option>
+                <option value="gemini:gemini-3.8-flash-lite">Gemini 3.8 Flash-Lite</option>
+                <option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash</option>
+                <option value="gemini:gemini-flash-latest">Gemini Flash Latest</option>
+                <option value="gemini:gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+              </optgroup>
+              <optgroup label="Anthropic">
+                <option value="anthropic:claude-3-7-sonnet-latest">Claude 3.7 Sonnet</option>
+                <option value="anthropic:claude-sonnet-4-5">Claude Sonnet 4.5</option>
+              </optgroup>
+              <optgroup label="OpenAI">
+                <option value="openai:gpt-4.1-mini">GPT-4.1 Mini</option>
+                <option value="openai:gpt-4o">GPT-4o</option>
+                <option value="openai:o3-mini">o3 Mini</option>
+              </optgroup>
+            </select>
           </div>
 
           {/* General Instruction Field */}

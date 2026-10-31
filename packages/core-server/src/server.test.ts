@@ -136,4 +136,52 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
 
     ws.close();
   });
+
+  it("reads and updates provider configuration via /v1/config/provider", async () => {
+    const authHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${authToken}`,
+    };
+
+    // 1. GET current provider config
+    const getRes = await fetch(`${baseUrl}/v1/config/provider`, {
+      headers: authHeaders,
+    });
+    expect(getRes.status).toBe(200);
+    const initialConfig = await getRes.json();
+    expect(initialConfig.provider).toBeDefined();
+    expect(initialConfig.model).toBeDefined();
+    expect(typeof initialConfig.hasApiKey).toBe("boolean");
+    expect(typeof initialConfig.maskedApiKey).toBe("string");
+
+    // 2. POST update provider to openai
+    const postRes = await fetch(`${baseUrl}/v1/config/provider`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        provider: "openai",
+        model: "gpt-4o",
+        apiKey: "sk-proj-test1234567890abcdef",
+      }),
+    });
+    expect(postRes.status).toBe(200);
+    const updated = await postRes.json();
+    expect(updated.success).toBe(true);
+    expect(updated.provider).toBe("openai");
+    expect(updated.model).toBe("gpt-4o");
+    expect(updated.hasApiKey).toBe(true);
+    expect(updated.maskedApiKey).toContain("••••••••");
+    expect(updated.maskedApiKey).not.toBe("sk-proj-test1234567890abcdef");
+
+    // 3. Confirm GET reflects updated configuration and masks key
+    const checkRes = await fetch(`${baseUrl}/v1/config/provider`, {
+      headers: authHeaders,
+    });
+    expect(checkRes.status).toBe(200);
+    const checked = await checkRes.json();
+    expect(checked.provider).toBe("openai");
+    expect(checked.model).toBe("gpt-4o");
+    expect(checked.hasApiKey).toBe(true);
+    expect(checked.maskedApiKey).toBe(updated.maskedApiKey);
+  });
 });

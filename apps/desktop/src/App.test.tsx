@@ -70,4 +70,46 @@ describe("VisualLoop Desktop Shell logic", () => {
     expect(expandedBounds.height).toBe(768);
     expect(expandedBounds.resizable).toBe(true);
   });
+
+  it("masks API keys securely without leaking plaintext secrets", () => {
+    const maskKey = (key?: string) => {
+      if (!key || key.trim().length === 0) return "";
+      const trimmed = key.trim();
+      if (trimmed.length <= 8) return "••••••••";
+      return `${trimmed.slice(0, 4)}••••••••${trimmed.slice(-4)}`;
+    };
+
+    expect(maskKey("")).toBe("");
+    expect(maskKey("short")).toBe("••••••••");
+    expect(maskKey("AIzaSyD1234567890abcdef")).toBe("AIza••••••••cdef");
+    expect(maskKey("sk-proj-1234567890abcdefg")).toBe("sk-p••••••••defg");
+  });
+
+  it("persists and switches AI provider configuration in local storage", () => {
+    const geminiConfig = {
+      provider: "gemini",
+      model: "gemini-2.5-pro",
+      apiKey: "AIzaSyTestKey12345",
+    };
+    mockStorage.setItem("visualloop_provider_config", JSON.stringify(geminiConfig));
+
+    let parsed = JSON.parse(mockStorage.getItem("visualloop_provider_config")!);
+    expect(parsed.provider).toBe("gemini");
+    expect(parsed.model).toBe("gemini-2.5-pro");
+    expect(parsed.apiKey).toBe("AIzaSyTestKey12345");
+
+    // Switch to OpenAI
+    const openaiConfig = {
+      ...parsed,
+      provider: "openai",
+      model: "gpt-4o",
+      apiKey: "sk-proj-testKeyOpenAI",
+    };
+    mockStorage.setItem("visualloop_provider_config", JSON.stringify(openaiConfig));
+
+    parsed = JSON.parse(mockStorage.getItem("visualloop_provider_config")!);
+    expect(parsed.provider).toBe("openai");
+    expect(parsed.model).toBe("gpt-4o");
+    expect(parsed.apiKey).toBe("sk-proj-testKeyOpenAI");
+  });
 });

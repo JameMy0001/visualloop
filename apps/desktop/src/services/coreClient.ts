@@ -1,4 +1,4 @@
-import { FeedbackSubmission, SessionHandle } from "@visualloop/protocol";
+import { FeedbackSubmission, SessionHandle, ProviderConfig, ProviderInfo } from "@visualloop/protocol";
 
 export interface ServiceHealth {
   status: string;
@@ -88,6 +88,28 @@ export class CoreClient {
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) throw new Error(`Feedback acknowledgement failed: HTTP ${res.status}`);
+    return res.json();
+  }
+
+  public async getProviderConfig(): Promise<ProviderInfo> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}/v1/config/provider`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) throw new Error(`Get provider config failed: HTTP ${res.status}`);
+    return res.json();
+  }
+
+  public async saveProviderConfig(config: Partial<ProviderConfig>): Promise<ProviderInfo> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}/v1/config/provider`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Save provider config failed: HTTP ${res.status}`);
+    }
     return res.json();
   }
 }

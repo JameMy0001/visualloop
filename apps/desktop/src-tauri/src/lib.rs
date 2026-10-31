@@ -129,6 +129,203 @@ fn get_auth_token() -> Option<String> {
     None
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProviderConfigPayload {
+    pub provider: String,
+    pub model: Option<String>,
+    #[serde(rename = "apiKey")]
+    pub api_key: Option<String>,
+    #[serde(rename = "baseUrl")]
+    pub base_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProviderInfoPayload {
+    pub provider: String,
+    pub model: String,
+    #[serde(rename = "hasApiKey")]
+    pub has_api_key: bool,
+    #[serde(rename = "maskedApiKey")]
+    pub masked_api_key: String,
+    #[serde(rename = "baseUrl")]
+    pub base_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct StoredConfigFile {
+    provider: Option<String>,
+    model: Option<String>,
+    #[serde(rename = "apiKey")]
+    api_key: Option<String>,
+    #[serde(rename = "baseUrl")]
+    base_url: Option<String>,
+    #[serde(rename = "providerKeys")]
+    provider_keys: Option<std::collections::HashMap<String, String>>,
+    #[serde(rename = "providerModels")]
+    provider_models: Option<std::collections::HashMap<String, String>>,
+}
+
+fn mask_key(key: &str) -> String {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.len() <= 8 {
+        return "••••••••".to_string();
+    }
+    let first = &trimmed[..4];
+    let last = &trimmed[trimmed.len() - 4..];
+    format!("{}••••••••{}", first, last)
+}
+
+fn get_default_model(provider: &str) -> &'static str {
+    match provider {
+        "gemini" => "gemini-2.5-pro",
+        "openai" => "gpt-4o",
+        "anthropic" => "claude-3-7-sonnet-20250219",
+        "openai-compatible" => "local-model",
+        _ => "gemini-2.5-pro",
+    }
+}
+
+#[tauri::command]
+fn get_provider_config() -> ProviderInfoPayload {
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_default();
+    let config_path = std::path::Path::new(&home).join(".visualloop").join("provider_config.json");
+
+    let stored: StoredConfigFile = if config_path.exists() {
+        std::fs::read_to_string(&config_path)
+            .ok()
+            .and_then(|c| serde_json::from_str(&c).ok())
+            .unwrap_or_default()
+    } else {
+        StoredConfigFile::default()
+    };
+
+    let env_provider = std::env::var("VISUALLOOP_AI_PROVIDER").ok().filter(|s| !s.trim().is_empty());
+    let provider = env_provider
+        .or(stored.provider)
+        .unwrap_or_else(|| "gemini".to_string())
+        .trim()
+        .to_lowercase();
+
+    let model = std::env::var("VISUALLOOP_AI_MODEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            if provider == "gemini" {
+                std::env::var("GEMINI_MODEL").ok().filter(|s| !s.trim().is_empty())
+            } else {
+                None
+            }
+        })
+        .or_else(|| stored.provider_models.as_ref().and_then(|m| m.get(&provider).cloned()))
+        .or(stored.model)
+        .unwrap_or_else(|| get_default_model(&provider).to_string());
+
+    let env_key = match provider.as_str() {
+        "gemini" => std::env::var("GEMINI_API_KEY").ok(),
+        "openai" => std::env::var("OPENAI_API_KEY").ok(),
+        "anthropic" => std::env::var("ANTHROPIC_API_KEY").ok(),
+        "openai-compatible" => std::env::var("OPENAI_COMPATIBLE_API_KEY").ok(),
+        _ => None,
+    }
+    .or_else(|| std::env::var("VISUALLOOP_AI_API_KEY").ok())
+    .filter(|s| !s.trim().is_empty());
+
+    let file_key = stored
+        .provider_keys
+        .as_ref()
+        .and_then(|m| m.get(&provider).cloned())
+        .or(stored.api_key)
+        .filter(|s| !s.trim().is_empty());
+
+    let active_key = env_key.or(file_key);
+    let has_api_key = active_key.is_some();
+    let masked_api_key = active_key.as_deref().map(mask_key).unwrap_or_default();
+
+    let base_url = std::env::var("OPENAI_COMPATIBLE_BASE_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or(stored.base_url);
+
+    ProviderInfoPayload {
+        provider,
+        model,
+        has_api_key,
+        masked_api_key,
+        base_url,
+    }
+}
+
+#[tauri::command]
+fn save_provider_config(payload: ProviderConfigPayload) -> Result<ProviderInfoPayload, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "Could not determine user home directory".to_string())?;
+    let config_dir = std::path::Path::new(&home).join(".visualloop");
+    if !config_dir.exists() {
+        std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    }
+    let config_path = config_dir.join("provider_config.json");
+
+    let mut stored: StoredConfigFile = if config_path.exists() {
+        std::fs::read_to_string(&config_path)
+            .ok()
+            .and_then(|c| serde_json::from_str(&c).ok())
+            .unwrap_or_default()
+    } else {
+        StoredConfigFile::default()
+    };
+
+    let mut provider_keys = stored.provider_keys.unwrap_or_default();
+    let mut provider_models = stored.provider_models.unwrap_or_default();
+
+    let provider = payload.provider.trim().to_lowercase();
+
+    // Update API Key
+    if let Some(key) = payload.api_key {
+        let trimmed = key.trim();
+        if trimmed == "__CLEAR__" {
+            provider_keys.remove(&provider);
+        } else if !trimmed.is_empty() && !trimmed.contains('•') {
+            provider_keys.insert(provider.clone(), trimmed.to_string());
+        }
+    }
+
+    // Update Model
+    let model = payload
+        .model
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| {
+            provider_models
+                .get(&provider)
+                .cloned()
+                .unwrap_or_else(|| get_default_model(&provider).to_string())
+        });
+    provider_models.insert(provider.clone(), model.clone());
+
+    stored.provider = Some(provider.clone());
+    stored.model = Some(model.clone());
+    stored.api_key = provider_keys.get(&provider).cloned();
+    if payload.base_url.is_some() {
+        stored.base_url = payload.base_url.clone();
+    }
+    stored.provider_keys = Some(provider_keys);
+    stored.provider_models = Some(provider_models);
+
+    let json_data = serde_json::to_string_pretty(&stored).map_err(|e| e.to_string())?;
+    std::fs::write(&config_path, json_data).map_err(|e| e.to_string())?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o600));
+    }
+
+    Ok(get_provider_config())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -142,7 +339,9 @@ pub fn run() {
             set_window_position,
             start_dragging,
             close_window,
-            get_auth_token
+            get_auth_token,
+            get_provider_config,
+            save_provider_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running VisualLoop application");

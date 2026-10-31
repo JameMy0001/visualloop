@@ -13,6 +13,7 @@ interface MiniOverlayProps {
   clickThrough: boolean;
   onExpand: () => void;
   onToggleClickThrough: () => void;
+  onOpenSettings?: () => void;
   onClose: () => void;
 }
 
@@ -24,6 +25,7 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
   clickThrough,
   onExpand,
   onToggleClickThrough,
+  onOpenSettings,
   onClose,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -49,12 +51,13 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
         clickThrough={clickThrough}
         onToggleExpand={onExpand}
         onToggleClickThrough={onToggleClickThrough}
+        onOpenSettings={onOpenSettings}
         onClose={onClose}
       />
 
       {/* Main Artifact Viewport */}
       <div className="relative flex-1 w-full overflow-hidden bg-[#FAFAFA]">
-        <ArtifactViewer artifact={artifact} className="w-full h-full" />
+        <ArtifactViewer artifact={artifact} onOpenSettings={onOpenSettings} className="w-full h-full" />
 
         {/* Click-through notice pill */}
         {clickThrough && (

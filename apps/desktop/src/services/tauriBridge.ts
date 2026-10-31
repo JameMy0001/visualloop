@@ -1,4 +1,4 @@
-import { WindowMode } from "@visualloop/protocol";
+import { WindowMode, ProviderConfig, ProviderInfo } from "@visualloop/protocol";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -217,6 +217,75 @@ class TauriBridge {
     return () => {
       window.removeEventListener("keydown", keyListener);
     };
+  }
+
+  public async getProviderConfig(): Promise<ProviderInfo | null> {
+    if (this.isTauriEnv) {
+      try {
+        return await invoke<ProviderInfo>("get_provider_config");
+      } catch (err) {
+        console.warn("Tauri invoke get_provider_config failed", err);
+      }
+    }
+
+    // LocalStorage fallback for browser/mock testing
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("visualloop_provider_config");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const hasApiKey = Boolean(parsed.apiKey && parsed.apiKey.length > 0);
+          const masked = hasApiKey
+            ? parsed.apiKey.length <= 8
+              ? "••••••••"
+              : `${parsed.apiKey.slice(0, 4)}••••••••${parsed.apiKey.slice(-4)}`
+            : "";
+          return {
+            provider: parsed.provider || "gemini",
+            model: parsed.model || "gemini-2.5-pro",
+            hasApiKey,
+            maskedApiKey: masked,
+            baseUrl: parsed.baseUrl,
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null;
+  }
+
+  public async saveProviderConfig(config: Partial<ProviderConfig>): Promise<ProviderInfo | null> {
+    if (this.isTauriEnv) {
+      try {
+        return await invoke<ProviderInfo>("save_provider_config", { payload: config });
+      } catch (err) {
+        console.warn("Tauri invoke save_provider_config failed", err);
+      }
+    }
+
+    // LocalStorage fallback for browser/mock testing
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("visualloop_provider_config");
+        const existing = raw ? JSON.parse(raw) : {};
+        const updated = { ...existing, ...config };
+        localStorage.setItem("visualloop_provider_config", JSON.stringify(updated));
+        const hasApiKey = Boolean(updated.apiKey && updated.apiKey.length > 0);
+        return {
+          provider: updated.provider || "gemini",
+          model: updated.model || "gemini-2.5-pro",
+          hasApiKey,
+          maskedApiKey: hasApiKey ? "••••••••" : "",
+          baseUrl: updated.baseUrl,
+        };
+      } catch {
+        // ignore
+      }
+    }
+
+    return null;
   }
 }
 
