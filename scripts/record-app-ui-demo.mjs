@@ -48,13 +48,13 @@ async function main(){
  cdp=new CDP(tab.webSocketDebuggerUrl);await cdp.open();
  await cdp.send("Emulation.setDeviceMetricsOverride",{width:W,height:H,deviceScaleFactor:1,mobile:false});
  await cdp.send("Page.enable");
- await waitUntil(async()=>Boolean(await ev("document.querySelector('main') && document.querySelector('button')")));
+ await waitUntil(async()=>Boolean(await ev("!!(document.querySelector('main') && document.querySelector('button'))")));
  await ev('(()=>{const p=document.createElement("div");p.id="__demoPointer";p.style.cssText="position:fixed;left:590px;top:350px;width:18px;height:22px;z-index:999999;pointer-events:none;filter:drop-shadow(1px 2px 1px #0009)";p.innerHTML="<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 20 24\'><path d=\'M2 2L2 21L7 16L11 23L15 21L11 14L18 14Z\' fill=\'white\' stroke=\'#0f172a\' stroke-width=\'1.4\'/></svg>";document.body.appendChild(p)})()');
  await hold(5);
  const session=await api("/v1/sessions",{adapterId:"demo-recorder",agentName:"Demo agent (test provider)",workspaceRoot:workspace});
  const publication={sessionId:session.sessionId,artifactId:"demo_dashboard",revision:1,kind:"svg",entrypoint:"dashboard.svg",title:"NOVA Analytics — first draft",viewport:{width:960,height:600,devicePixelRatio:1,zoom:1,scrollX:0,scrollY:0}};
  await api("/v1/artifacts",publication);
- await waitUntil(async()=>!!(await ev("document.querySelector('.cursor-crosshair')")));
+ await waitUntil(async()=>!!(await ev("!!document.querySelector('.cursor-crosshair')")));
  await hold(10);
  // Ensure the current model points to the deterministic local test provider.
  assert(await ev('(()=>{const s=document.querySelector("select");if(!s)return false;s.value="openai-compatible:local-model";s.dispatchEvent(new Event("change",{bubbles:true}));return s.value==="openai-compatible:local-model"})()'),"Model selector missing");
