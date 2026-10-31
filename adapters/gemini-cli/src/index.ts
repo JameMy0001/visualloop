@@ -52,10 +52,17 @@ export function validateSvgXmlStructure(code: string): { valid: boolean; error?:
   }
 
   // Remove XML declarations and comments before checking tags
-  const cleanCode = trimmed
+  let cleanCode = trimmed
     .replace(/<\?xml.*?\?>/gi, "")
     .replace(/<!--[\s\S]*?-->/g, "")
     .trim();
+
+  // If code contains an svg block, extract from first <svg to last </svg>
+  const firstSvgIndex = cleanCode.indexOf("<svg");
+  const lastSvgIndex = cleanCode.lastIndexOf("</svg>");
+  if (firstSvgIndex !== -1 && lastSvgIndex !== -1 && lastSvgIndex > firstSvgIndex) {
+    cleanCode = cleanCode.slice(firstSvgIndex, lastSvgIndex + 6).trim();
+  }
 
   if (!cleanCode.startsWith("<svg") || !cleanCode.endsWith("</svg>")) {
     return {
@@ -64,12 +71,17 @@ export function validateSvgXmlStructure(code: string): { valid: boolean; error?:
     };
   }
 
+  // Strip <style> and <script> contents to avoid CSS/JS selectors (like >) breaking tag parsing
+  const codeForTagChecking = cleanCode
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "<style></style>")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "<script></script>");
+
   // Tag stack parser for well-formedness
   const tagRegex = /<(\/?)([a-zA-Z0-9:-]+)([^>]*?)(\/?)>/g;
   const stack: string[] = [];
   let match: RegExpExecArray | null;
 
-  while ((match = tagRegex.exec(cleanCode)) !== null) {
+  while ((match = tagRegex.exec(codeForTagChecking)) !== null) {
     const isClosing = match[1] === "/";
     const tagName = match[2].toLowerCase();
     const isSelfClosing = match[4] === "/" || match[3].trim().endsWith("/");

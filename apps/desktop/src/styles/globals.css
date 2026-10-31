@@ -53,6 +53,25 @@ html, body, #root {
   -webkit-user-select: none;
 }
 
+@keyframes laserScan {
+  0% { top: 0%; opacity: 0.8; }
+  50% { top: 100%; opacity: 0.9; }
+  100% { top: 0%; opacity: 0.8; }
+}
+
+.animate-laser-scan {
+  animation: laserScan 2.4s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
 /* Restrained scrollbar */
 ::-webkit-scrollbar {
   width: 5px;

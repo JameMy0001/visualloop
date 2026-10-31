@@ -94,8 +94,8 @@ function requiredKey(config: ProviderConfig): string {
 }
 function screenshot(url?: string): { mimeType: string; data: string } | undefined {
   if (!url) return undefined;
-  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(url);
-  if (!match) throw new Error("Expected an annotated screenshot as base64 PNG, JPEG, or WebP.");
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/s.exec(url.trim());
+  if (!match) return undefined;
   return { mimeType: match[1], data: match[2] };
 }
 async function requestJson(url: string, body: unknown, headers: Record<string, string>, ms = 60000): Promise<any> {

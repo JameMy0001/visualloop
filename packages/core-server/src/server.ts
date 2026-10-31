@@ -28,6 +28,7 @@ import {
   readProviderConfigFile,
   writeProviderConfigFile,
   DEFAULT_PROVIDER_MODELS,
+  PROVIDER_ENV_KEYS,
 } from "./security.js";
 
 export interface CoreServerConfig {
@@ -618,13 +619,33 @@ export class CoreServer {
         return false;
       }
 
-      const baseConfig = providerConfigFromEnv();
-      const effectiveProvider = submission.preferredProvider || baseConfig.provider;
-      const effectiveModel = submission.preferredModel || baseConfig.model;
+      const fileConfig = readProviderConfigFile() || { provider: "gemini" as const };
+      const effectiveProvider = (
+        submission.preferredProvider ||
+        process.env.VISUALLOOP_AI_PROVIDER ||
+        fileConfig.provider ||
+        "gemini"
+      ).trim().toLowerCase();
+
+      const effectiveModel =
+        submission.preferredModel ||
+        process.env.VISUALLOOP_AI_MODEL ||
+        fileConfig.providerModels?.[effectiveProvider] ||
+        (fileConfig.provider === effectiveProvider ? fileConfig.model : undefined) ||
+        DEFAULT_PROVIDER_MODELS[effectiveProvider] ||
+        "gemini-3.8-flash";
+
+      const envKey = process.env[PROVIDER_ENV_KEYS[effectiveProvider]] || process.env.VISUALLOOP_AI_API_KEY;
+      const fileKey =
+        fileConfig.providerKeys?.[effectiveProvider] ||
+        (fileConfig.provider === effectiveProvider ? fileConfig.apiKey : undefined);
+      const activeKey = envKey || fileKey;
+
       const effectiveConfig: ProviderConfig = {
-        ...baseConfig,
         provider: effectiveProvider,
         model: effectiveModel,
+        apiKey: activeKey,
+        baseUrl: process.env.OPENAI_COMPATIBLE_BASE_URL || fileConfig.baseUrl || undefined,
       };
 
       if (!hasModelCredentials(effectiveConfig)) {

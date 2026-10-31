@@ -11,8 +11,8 @@ interface StoredConfig {
 }
 
 export function useWindowState() {
-  const [mode, setModeState] = useState<WindowMode>("mini");
-  const [state, setState] = useState<WindowState>("mini_idle");
+  const [mode, setModeState] = useState<WindowMode>("expanded");
+  const [state, setState] = useState<WindowState>("expanded");
   const [opacity, setOpacityState] = useState<number>(0.85);
   // Default to false so the window is always interactive and draggable
   const [clickThrough, setClickThroughState] = useState<boolean>(false);

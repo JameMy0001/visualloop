@@ -14,8 +14,8 @@
       {
         "title": "VisualLoop",
         "label": "main",
-        "width": 360,
-        "height": 240,
+        "width": 1024,
+        "height": 768,
         "resizable": true,
         "transparent": true,
         "alwaysOnTop": true,

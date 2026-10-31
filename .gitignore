@@ -11,3 +11,6 @@ coverage
 .cache
 captures/
 visualloop-feedback.json
+*.bak
+.visualloop_backups/
+.visualloop_uploads/

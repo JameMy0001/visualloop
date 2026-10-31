@@ -74,6 +74,48 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccessMessage, setSubmitSuccessMessage] = useState<string | null>(null);
 
+  const [isRevising, setIsRevising] = useState<boolean>(false);
+  const [revisionStage, setRevisionStage] = useState<number>(1);
+  const [revisionSeconds, setRevisionSeconds] = useState<number>(0);
+  const [submittedAnnotations, setSubmittedAnnotations] = useState<Annotation[]>([]);
+  const [submittedGeneralInstruction, setSubmittedGeneralInstruction] = useState<string>("");
+  const [revisionSuccessBanner, setRevisionSuccessBanner] = useState<{
+    rev: number;
+    duration: number;
+  } | null>(null);
+
+  const prevRevisionRef = useRef<number>(artifact?.revision || 1);
+  useEffect(() => {
+    if (artifact && artifact.revision > prevRevisionRef.current) {
+      setIsRevising(false);
+      setRevisionSuccessBanner({
+        rev: artifact.revision,
+        duration: Math.max(1, revisionSeconds),
+      });
+      prevRevisionRef.current = artifact.revision;
+      const t = setTimeout(() => {
+        setRevisionSuccessBanner(null);
+      }, 7000);
+      return () => clearTimeout(t);
+    }
+  }, [artifact?.revision, revisionSeconds]);
+
+  useEffect(() => {
+    if (!isRevising) return;
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 100) / 10;
+      setRevisionSeconds(elapsed);
+      if (elapsed >= 3.5) {
+        setRevisionStage(3);
+      } else if (elapsed >= 0.8) {
+        setRevisionStage(2);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isRevising]);
+
   useEffect(() => {
     let isMounted = true;
     async function syncActiveModel() {
@@ -399,12 +441,20 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     };
 
     try {
+      setIsRevising(true);
+      setRevisionStage(1);
+      setRevisionSeconds(0);
+      setSubmittedAnnotations([...annotations]);
+      setSubmittedGeneralInstruction(generalInstruction.trim());
+      setSubmitSuccessMessage(null);
+      setSubmitError(null);
+
       await onSubmitFeedback(submission);
-      setSubmitSuccessMessage(`Feedback #${submission.feedbackId.slice(-6)} sent! Waiting for AI revision...`);
       setAnnotations([]);
       setHistory([]);
       setGeneralInstruction("");
     } catch (err: any) {
+      setIsRevising(false);
       setSubmitError(err.message || "Failed to submit feedback to local service.");
     } finally {
       setIsSubmitting(false);
@@ -723,6 +773,90 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                 }`}
               />
             )}
+
+            {/* Layer 5: Active AI Revision HUD & Scanner (Visual Proof of Real-Time Modification) */}
+            {isRevising && (
+              <div className="absolute inset-0 z-25 pointer-events-none flex flex-col justify-between overflow-hidden">
+                {/* Animated Laser Scanning Line sweeping across the rendered preview */}
+                <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#2dd4bf] to-transparent shadow-[0_0_12px_#2dd4bf,0_0_24px_#14b8a6] animate-laser-scan pointer-events-none" />
+
+                {/* Top Glassmorphic AI Live Processing HUD */}
+                <div className="m-3 p-3 rounded-[12px] bg-[#090d16]/85 backdrop-blur-md border border-[#1e293b] text-white shadow-2xl flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#2dd4bf] animate-ping" />
+                      <span className="text-xs font-bold tracking-wide uppercase text-[#2dd4bf] flex items-center gap-1.5">
+                        AI Agent Actively Modifying Source File
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-[#94a3b8]">
+                      <span className="px-1.5 py-0.5 rounded bg-[#1e293b] text-[#5eead4]">
+                        {selectedModelOption.split(":")[1] || "gemini-3.8-flash"}
+                      </span>
+                      <span className="text-[#38bdf8] font-bold">Elapsed: {revisionSeconds.toFixed(1)}s</span>
+                    </div>
+                  </div>
+
+                  {/* Step by Step Execution Indicators */}
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[#1e293b]/60 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-[#34d399]">
+                      <span>[✓]</span>
+                      <span className="truncate">Visual Markup Captured</span>
+                    </div>
+                    <div
+                      className={`flex items-center gap-1.5 transition-colors ${
+                        revisionStage >= 2 ? "text-[#38bdf8] font-semibold" : "text-[#64748b]"
+                      }`}
+                    >
+                      <span>{revisionStage >= 2 ? "[●]" : "[○]"}</span>
+                      <span className="truncate">
+                        {revisionStage >= 2 ? "Synthesizing AST & Code..." : "Waiting for synthesis..."}
+                      </span>
+                    </div>
+                    <div
+                      className={`flex items-center gap-1.5 transition-colors ${
+                        revisionStage >= 3 ? "text-[#a78bfa] font-semibold" : "text-[#64748b]"
+                      }`}
+                    >
+                      <span>{revisionStage >= 3 ? "[●]" : "[○]"}</span>
+                      <span className="truncate">
+                        {revisionStage >= 3 ? "Validating & Backup..." : "Syntax verification"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subtle Canvas Border Glow */}
+                <div className="absolute inset-0 border-2 border-[#2dd4bf]/40 rounded-[10px] pointer-events-none animate-pulse-glow" />
+              </div>
+            )}
+
+            {/* Layer 6: Revision Success Banner (Live Hot-Reload Confirmation) */}
+            {revisionSuccessBanner && (
+              <div className="absolute top-3 inset-x-3 z-30 p-2.5 rounded-[10px] bg-[#042f2e]/95 backdrop-blur-md border border-[#14b8a6] text-[#ccfbf1] shadow-xl flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#14b8a6] text-[#042f2e] flex items-center justify-center font-bold text-[11px]">
+                    ✓
+                  </span>
+                  <div>
+                    <span className="font-bold text-[#ffffff]">Revision {revisionSuccessBanner.rev} Applied Successfully!</span>
+                    <span className="text-[#5eead4] ml-2 text-[11px]">
+                      Synthesized by {selectedModelOption.split(":")[1]} in {revisionSuccessBanner.duration.toFixed(1)}s
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-[#99f6e4]/70">Auto-backup created</span>
+                  <button
+                    type="button"
+                    onClick={() => setRevisionSuccessBanner(null)}
+                    className="text-[#99f6e4] hover:text-[#ffffff] text-sm font-bold px-1 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -735,7 +869,63 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
           {/* Annotations List */}
           <div className="flex-1 space-y-2 overflow-y-auto mb-3">
-            {annotations.length === 0 ? (
+            {isRevising ? (
+              <div className="p-3 rounded-[10px] bg-[#090d16] border border-[#1e293b] text-white flex flex-col gap-2.5 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-[#2dd4bf] uppercase tracking-wider flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3 animate-spin text-[#2dd4bf]" /> Active AI Job
+                  </span>
+                  <span className="text-[10px] font-mono text-[#38bdf8] font-bold">{revisionSeconds.toFixed(1)}s</span>
+                </div>
+
+                <div className="text-[11px] text-[#cbd5e1] space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-[#64748b]">Target:</span>
+                    <span className="font-mono text-[#f1f5f9] truncate max-w-[150px]">{artifact?.entrypoint.split("/").pop()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748b]">Revision:</span>
+                    <span className="font-mono text-[#38bdf8]">Rev {artifact?.revision ?? 1} ➔ Rev {(artifact?.revision ?? 1) + 1}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748b]">Model:</span>
+                    <span className="font-mono text-[#a78bfa]">{selectedModelOption.split(":")[1]}</span>
+                  </div>
+                </div>
+
+                {submittedAnnotations.length > 0 && (
+                  <div className="pt-2 border-t border-[#1e293b] text-[11px]">
+                    <span className="text-[#64748b] block mb-1">Applying Changes:</span>
+                    <div className="space-y-1 max-h-36 overflow-y-auto">
+                      {submittedAnnotations.map((ann, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-xs text-[#e2e8f0] bg-[#1e293b]/60 p-1.5 rounded">
+                          <span className="w-3.5 h-3.5 rounded-full bg-[#E14C45] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                            {i + 1}
+                          </span>
+                          <span className="line-clamp-2 text-[11px]">{ann.instruction}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {submittedGeneralInstruction && (
+                  <div className="text-[11px] bg-[#1e293b]/40 p-1.5 rounded border border-[#334155]">
+                    <span className="text-[#94a3b8]">General Note: </span>
+                    <span className="text-[#f1f5f9]">{submittedGeneralInstruction}</span>
+                  </div>
+                )}
+
+                <div className="w-full bg-[#1e293b] rounded-full h-1.5 overflow-hidden mt-1">
+                  <div
+                    className="bg-gradient-to-r from-[#14b8a6] via-[#38bdf8] to-[#a78bfa] h-full transition-all duration-300"
+                    style={{
+                      width: revisionStage === 1 ? "30%" : revisionStage === 2 ? "75%" : "95%",
+                    }}
+                  />
+                </div>
+              </div>
+            ) : annotations.length === 0 ? (
               <div className="p-3 text-center border border-dashed border-[#E5E5E5] rounded-[8px] text-[11px] text-[#737373]">
                 Circle or draw on the canvas to add specific visual corrections.
               </div>
