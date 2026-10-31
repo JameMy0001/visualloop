@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft,
   Circle,
@@ -68,6 +68,27 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function syncActiveModel() {
+      try {
+        const savedPref = localStorage.getItem("visualloop_preferred_model");
+        if (!savedPref) {
+          const info = await tauriBridge.getProviderConfig();
+          if (isMounted && info && info.provider && info.model) {
+            setSelectedModelOption(`${info.provider}:${info.model}`);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    syncActiveModel();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Drawing interaction state
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
@@ -625,14 +646,27 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                 <option value="gemini:gemini-flash-latest">Gemini Flash Latest</option>
                 <option value="gemini:gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
               </optgroup>
-              <optgroup label="Anthropic">
-                <option value="anthropic:claude-3-7-sonnet-latest">Claude 3.7 Sonnet</option>
-                <option value="anthropic:claude-sonnet-4-5">Claude Sonnet 4.5</option>
+              <optgroup label="OpenAI / ChatGPT">
+                <option value="openai:gpt-4o">GPT-4o (Omni Flagship)</option>
+                <option value="openai:gpt-4.5-preview">GPT-4.5 Preview</option>
+                <option value="openai:o3-mini">o3 Mini (Reasoning)</option>
+                <option value="openai:o1">o1 (Full Reasoning)</option>
+                <option value="openai:gpt-4o-mini">GPT-4o Mini</option>
+                <option value="openai:chatgpt-4o-latest">ChatGPT 4o Latest</option>
               </optgroup>
-              <optgroup label="OpenAI">
-                <option value="openai:gpt-4.1-mini">GPT-4.1 Mini</option>
-                <option value="openai:gpt-4o">GPT-4o</option>
-                <option value="openai:o3-mini">o3 Mini</option>
+              <optgroup label="Anthropic Claude">
+                <option value="anthropic:claude-3-7-sonnet-20250219">Claude 3.7 Sonnet (Hybrid Reasoning)</option>
+                <option value="anthropic:claude-3-5-sonnet-20241022">Claude 3.5 Sonnet v2</option>
+                <option value="anthropic:claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+                <option value="anthropic:claude-3-opus-20240229">Claude 3 Opus</option>
+              </optgroup>
+              <optgroup label="Custom / Compatible (Local &amp; Open Models)">
+                <option value="openai-compatible:deepseek-r1">DeepSeek R1 (Open Reasoning)</option>
+                <option value="openai-compatible:deepseek-v3">DeepSeek V3 (Coding MoE)</option>
+                <option value="openai-compatible:qwen2.5-coder:32b">Qwen 2.5 Coder 32B</option>
+                <option value="openai-compatible:llama-3.3-70b">Llama 3.3 70B</option>
+                <option value="openai-compatible:mistral-large-latest">Mistral Large Latest</option>
+                <option value="openai-compatible:local-model">Custom Local Model (Ollama / vLLM)</option>
               </optgroup>
             </select>
           </div>

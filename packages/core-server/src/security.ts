@@ -87,7 +87,7 @@ export const DEFAULT_PROVIDER_MODELS: Record<string, string> = {
   gemini: "gemini-3.8-flash",
   openai: "gpt-4o",
   anthropic: "claude-3-7-sonnet-20250219",
-  "openai-compatible": "local-model",
+  "openai-compatible": "deepseek-r1",
 };
 
 export const PROVIDER_ENV_KEYS: Record<string, string> = {

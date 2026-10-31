@@ -23,8 +23,9 @@ export interface ProviderOutput { provider: string; model: string; source: strin
 const plugins = new Map<string, ProviderPlugin>();
 const defaults: Record<string, string> = {
   gemini: "gemini-3.8-flash",
-  openai: "gpt-4.1-mini",
-  anthropic: "claude-sonnet-4-5",
+  openai: "gpt-4o",
+  anthropic: "claude-3-7-sonnet-20250219",
+  "openai-compatible": "deepseek-r1",
 };
 const keyNames: Record<string, string> = {
   gemini: "GEMINI_API_KEY",

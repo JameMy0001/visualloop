@@ -10,10 +10,17 @@ interface SettingsModalProps {
   onSaved?: (info: ProviderInfo) => void;
 }
 
+interface ModelOption {
+  id: string;
+  name: string;
+  badge?: string;
+}
+
 interface ProviderPreset {
   id: AIProvider;
   name: string;
   defaultModel: string;
+  models: ModelOption[];
   recommendedModels: string[];
   keyPlaceholder: string;
   envKeyName: string;
@@ -24,6 +31,13 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
     id: "gemini",
     name: "Google Gemini",
     defaultModel: "gemini-3.8-flash",
+    models: [
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "Smartest & Fast" },
+      { id: "gemini-3.8-flash-lite", name: "Gemini 3.8 Flash-Lite", badge: "High Speed" },
+      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", badge: "Stable" },
+      { id: "gemini-flash-latest", name: "Gemini Flash Latest", badge: "Auto-updating" },
+      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview", badge: "Deep Reasoning" },
+    ],
     recommendedModels: [
       "gemini-3.8-flash",
       "gemini-3.8-flash-lite",
@@ -38,7 +52,22 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
     id: "openai",
     name: "OpenAI / ChatGPT",
     defaultModel: "gpt-4o",
-    recommendedModels: ["gpt-4o", "gpt-4o-mini", "o3-mini"],
+    models: [
+      { id: "gpt-4o", name: "GPT-4o", badge: "Omni Flagship" },
+      { id: "gpt-4.5-preview", name: "GPT-4.5 Preview", badge: "Most Capable" },
+      { id: "o3-mini", name: "o3 Mini", badge: "Coding & Math" },
+      { id: "o1", name: "o1", badge: "Deep Reasoning" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", badge: "Fast & Lightweight" },
+      { id: "chatgpt-4o-latest", name: "ChatGPT 4o Latest", badge: "Always Latest" },
+    ],
+    recommendedModels: [
+      "gpt-4o",
+      "gpt-4.5-preview",
+      "o3-mini",
+      "o1",
+      "gpt-4o-mini",
+      "chatgpt-4o-latest",
+    ],
     keyPlaceholder: "sk-proj-...",
     envKeyName: "OPENAI_API_KEY",
   },
@@ -46,10 +75,17 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
     id: "anthropic",
     name: "Anthropic Claude",
     defaultModel: "claude-3-7-sonnet-20250219",
+    models: [
+      { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet", badge: "Hybrid Reasoning & Code" },
+      { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet v2", badge: "Production Coding" },
+      { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", badge: "Ultra Fast" },
+      { id: "claude-3-opus-20240229", name: "Claude 3 Opus", badge: "Complex Writing" },
+    ],
     recommendedModels: [
       "claude-3-7-sonnet-20250219",
       "claude-3-5-sonnet-20241022",
       "claude-3-5-haiku-20241022",
+      "claude-3-opus-20240229",
     ],
     keyPlaceholder: "sk-ant-...",
     envKeyName: "ANTHROPIC_API_KEY",
@@ -57,9 +93,24 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: "openai-compatible",
     name: "Custom / Compatible",
-    defaultModel: "local-model",
-    recommendedModels: ["local-model", "llama3.3", "qwen2.5-coder", "deepseek-r1"],
-    keyPlaceholder: "sk-...",
+    defaultModel: "deepseek-r1",
+    models: [
+      { id: "deepseek-r1", name: "DeepSeek R1", badge: "Open Reasoning" },
+      { id: "deepseek-v3", name: "DeepSeek V3", badge: "Open Coding Flagship" },
+      { id: "qwen2.5-coder:32b", name: "Qwen 2.5 Coder 32B", badge: "Local SOTA Coding" },
+      { id: "llama-3.3-70b", name: "Llama 3.3 70B", badge: "Meta Flagship" },
+      { id: "mistral-large-latest", name: "Mistral Large Latest", badge: "Frontier Model" },
+      { id: "local-model", name: "Custom Local Model", badge: "Ollama / vLLM Default" },
+    ],
+    recommendedModels: [
+      "deepseek-r1",
+      "deepseek-v3",
+      "qwen2.5-coder:32b",
+      "llama-3.3-70b",
+      "mistral-large-latest",
+      "local-model",
+    ],
+    keyPlaceholder: "sk-... (leave blank for local Ollama/vLLM)",
     envKeyName: "OPENAI_COMPATIBLE_API_KEY",
   },
 ];
@@ -347,10 +398,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Section: Model Selection */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-[#525252] uppercase tracking-wider flex items-center gap-1">
-              <Cpu className="w-3 h-3 text-[#737373]" />
-              <span>Model Name</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-[#525252] uppercase tracking-wider flex items-center gap-1">
+                <Cpu className="w-3 h-3 text-[#737373]" />
+                <span>Select Model ({currentPreset.name})</span>
+              </label>
+              <span className="text-[10px] text-[#737373] font-mono">
+                {currentPreset.models.length} options
+              </span>
+            </div>
+
+            {/* Curated Model Dropdown */}
+            <select
+              value={currentPreset.recommendedModels.includes(modelInput) ? modelInput : "custom"}
+              onChange={(e) => {
+                if (e.target.value !== "custom") {
+                  setModelInput(e.target.value);
+                }
+              }}
+              className="w-full h-[34px] px-2.5 bg-[#FFFFFF] border border-[#D4D4D4] rounded-[8px] text-xs text-[#171717] focus:outline-none focus:border-[#171717] transition-colors cursor-pointer shadow-xs"
+            >
+              {currentPreset.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} {m.badge ? `(${m.badge})` : ""} - {m.id}
+                </option>
+              ))}
+              <option value="custom">Custom model name...</option>
+            </select>
+
+            {/* Direct Model Input */}
             <input
               type="text"
               value={modelInput}
@@ -358,20 +434,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               placeholder={currentPreset.defaultModel}
               className="w-full h-[34px] px-3 bg-[#FAFAFA] border border-[#D4D4D4] rounded-[8px] text-xs text-[#171717] placeholder-[#A3A3A3] focus:outline-none focus:border-[#171717] focus:bg-[#FFFFFF] transition-colors font-mono"
             />
-            {/* Quick model presets */}
+
+            {/* Quick model preset chips */}
             <div className="flex flex-wrap gap-1 mt-0.5">
-              {currentPreset.recommendedModels.map((m) => (
+              {currentPreset.models.map((m) => (
                 <button
-                  key={m}
+                  key={m.id}
                   type="button"
-                  onClick={() => setModelInput(m)}
+                  onClick={() => setModelInput(m.id)}
+                  title={m.badge ? `${m.name} - ${m.badge}` : m.name}
                   className={`text-[10px] font-mono px-2 py-0.5 rounded-[5px] border transition-colors cursor-pointer ${
-                    modelInput === m
+                    modelInput === m.id
                       ? "bg-[#171717] text-[#FFFFFF] border-[#171717]"
                       : "bg-[#FAFAFA] text-[#525252] border-[#E5E5E5] hover:border-[#A3A3A3] hover:text-[#171717]"
                   }`}
                 >
-                  {m}
+                  {m.name.split(" ")[0]} {m.id.replace(/^(claude-|gemini-|gpt-|deepseek-|qwen)/i, "")}
                 </button>
               ))}
             </div>
