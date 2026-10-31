@@ -18,6 +18,7 @@ import {
   Annotation,
   AnnotationType,
   FeedbackSubmission,
+  ArtifactKind,
   normalizeBounds,
   denormalizeBounds,
   normalizePoint,
@@ -28,7 +29,7 @@ import {
   rasterizeSvgToPngDataUrl,
 } from "@visualloop/annotation-engine";
 import { ArtifactViewer } from "./ArtifactViewer";
-import { ActiveArtifactInfo } from "../services/coreClient";
+import { ActiveArtifactInfo, coreClient } from "../services/coreClient";
 import { FeedbackUIStatus } from "../state/useVisualLoopStore";
 import { tauriBridge } from "../services/tauriBridge";
 
@@ -91,6 +92,85 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     syncActiveModel();
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // Drag and drop state & file loader handlers
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
+
+  const handleProcessFilePath = async (filePath: string) => {
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+      await coreClient.selectWorkspaceAsset(filePath);
+      setSubmitSuccessMessage(`Loaded ${filePath.split("/").pop()} into canvas!`);
+    } catch (err: any) {
+      setSubmitError(err.message || "Failed to load dropped file.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleProcessFile = async (file: File) => {
+    const nativePath = (file as any).path;
+    if (nativePath && typeof nativePath === "string") {
+      await handleProcessFilePath(nativePath);
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const content = reader.result as string;
+          const ext = file.name.split(".").pop()?.toLowerCase();
+          const isImage = ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext || "");
+          const isSvg = ext === "svg";
+          const kind: ArtifactKind = isImage ? "image" : isSvg ? "svg" : "html";
+
+          await coreClient.uploadAsset(file.name, content, kind);
+          setSubmitSuccessMessage(`Loaded ${file.name} into canvas!`);
+        } catch (innerErr: any) {
+          setSubmitError(innerErr.message || "Failed to upload dropped file.");
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setSubmitError(err.message || "Failed to read dropped file.");
+      setIsSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    async function setupTauriDragDrop() {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const cleanup = await getCurrentWindow().onDragDropEvent(async (event) => {
+          if (event.payload.type === "over") {
+            setIsDragOver(true);
+          } else if (event.payload.type === "drop") {
+            setIsDragOver(false);
+            const paths = event.payload.paths;
+            if (paths && paths.length > 0) {
+              await handleProcessFilePath(paths[0]);
+            }
+          } else {
+            setIsDragOver(false);
+          }
+        });
+        unlisten = cleanup;
+      } catch {
+        // Fallback to HTML5 drag and drop
+      }
+    }
+    setupTauriDragDrop();
+    return () => {
+      if (unlisten) unlisten();
     };
   }, []);
 
@@ -527,29 +607,65 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           </button>
         </div>
 
-        {/* Center Live Canvas with Annotation Overlay */}
+        {/* Center Live Canvas with Annotation Overlay & Drag Drop */}
         <div className="flex-1 relative flex flex-col p-3 bg-[#F5F5F5] overflow-hidden">
           <div
             ref={canvasRef}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(false);
+            }}
+            onDrop={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                await handleProcessFile(e.dataTransfer.files[0]);
+              }
+            }}
             className="relative flex-1 w-full rounded-[10px] overflow-hidden border border-[#E5E5E5] bg-[#FFFFFF] select-none"
           >
             {/* Layer 1: The Live Artifact Viewer */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
+            <div
+              className={`absolute inset-0 overflow-hidden flex items-center justify-center ${
+                artifact ? "pointer-events-none" : "pointer-events-auto"
+              }`}
+            >
               <ArtifactViewer
                 artifact={artifact}
                 onOpenAssetPicker={onOpenAssetPicker}
                 onOpenSettings={onOpenSettings}
-                className="w-full h-full pointer-events-none select-none"
+                onFileSelected={handleProcessFile}
+                className="w-full h-full"
               />
             </div>
 
-            {/* Layer 2: Dedicated Transparent Drawing Surface on TOP */}
-            <div
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              className="absolute inset-0 z-10 cursor-crosshair select-none"
-            />
+            {/* Layer 2: Dedicated Transparent Drawing Surface on TOP (Active only when artifact is loaded!) */}
+            {artifact && (
+              <div
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                className="absolute inset-0 z-10 cursor-crosshair select-none"
+              />
+            )}
+
+            {/* Layer 4: Drag and Drop Highlight Overlay */}
+            {isDragOver && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-teal-500/10 border-2 border-dashed border-teal-500 rounded-[10px] backdrop-blur-[1px] pointer-events-none select-none">
+                <div className="w-12 h-12 rounded-full bg-teal-500 text-white flex items-center justify-center shadow-lg mb-2">
+                  <FolderOpen className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-bold text-teal-900">Drop image or slide here</p>
+                <p className="text-xs text-teal-700">Instantly loads into canvas for circling and AI editing</p>
+              </div>
+            )}
 
             {/* Layer 3: Rendered Existing Annotations Overlay */}
             {canvasRef.current &&

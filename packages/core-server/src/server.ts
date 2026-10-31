@@ -315,14 +315,24 @@ export class CoreServer {
           return reply.status(400).send({ error: "Missing 'entrypoint' in request body" });
         }
 
+        let entrypoint = body.entrypoint;
         let root = body.workspaceRoot;
-        if (!root || !root.trim()) {
+
+        if (path.isAbsolute(entrypoint)) {
+          const resolvedPath = path.resolve(entrypoint);
+          if (!root || !resolvedPath.startsWith(path.resolve(root))) {
+            root = path.dirname(resolvedPath);
+            entrypoint = path.basename(resolvedPath);
+          } else {
+            entrypoint = path.relative(path.resolve(root), resolvedPath);
+          }
+        } else if (!root || !root.trim()) {
           const snap = this.store.getSnapshot();
           const active = snap.sessions.find((s) => s.sessionId === snap.activeSessionId);
           root = active?.workspaceRoot || process.cwd();
         }
 
-        const ext = path.extname(body.entrypoint).toLowerCase();
+        const ext = path.extname(entrypoint).toLowerCase();
         const isImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(ext);
         const isSvg = ext === ".svg";
         const kind: ArtifactKind = isImage ? "image" : isSvg ? "svg" : "html";
@@ -338,22 +348,120 @@ export class CoreServer {
         }
 
         // Validate and load artifact via preview-engine
-        const loaded = await loadArtifact(root, body.entrypoint, kind);
-        const artifactId = `art_${path.basename(body.entrypoint, ext).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+        const loaded = await loadArtifact(root, entrypoint, kind);
+        const artifactId = `art_${path.basename(entrypoint, ext).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
         const publication = {
           sessionId: session.sessionId,
           artifactId,
           revision: 1,
           kind: loaded.kind,
-          entrypoint: body.entrypoint,
-          title: path.basename(body.entrypoint),
+          entrypoint,
+          title: path.basename(entrypoint),
           viewport: { width: 1024, height: 768, devicePixelRatio: 2, zoom: 1, scrollX: 0, scrollY: 0 },
         };
 
         const revision = this.store.publishArtifact(publication, loaded.contentHash, loaded.content);
 
         // Broadcast real-time events to all connected clients
+        this.ws.broadcast({
+          type: "artifact.published",
+          timestamp: new Date().toISOString(),
+          payload: publication,
+        });
+
+        this.ws.broadcast({
+          type: "preview.ready",
+          timestamp: new Date().toISOString(),
+          payload: {
+            sessionId: publication.sessionId,
+            artifactId: publication.artifactId,
+            revision: revision.revision,
+            kind: publication.kind,
+            title: publication.title,
+            entrypoint: publication.entrypoint,
+            content: loaded.content,
+          },
+        });
+
+        this.ws.broadcast({
+          type: "revision.published",
+          timestamp: new Date().toISOString(),
+          payload: revision,
+        });
+
+        return reply.status(200).send({
+          success: true,
+          publication,
+          revision,
+        });
+      } catch (err: any) {
+        return reply.status(400).send({ error: err.message });
+      }
+    });
+
+    this.fastify.post("/v1/workspace/upload-asset", async (request, reply) => {
+      try {
+        const body = request.body as {
+          filename: string;
+          content: string;
+          kind?: ArtifactKind;
+          workspaceRoot?: string;
+        };
+        if (!body || !body.filename || !body.content) {
+          return reply.status(400).send({ error: "Missing filename or content in request body" });
+        }
+
+        const ext = path.extname(body.filename).toLowerCase();
+        const isImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(ext);
+        const isSvg = ext === ".svg";
+        const kind: ArtifactKind = body.kind || (isImage ? "image" : isSvg ? "svg" : "html");
+
+        let root = body.workspaceRoot;
+        if (!root || !root.trim()) {
+          const snap = this.store.getSnapshot();
+          const active = snap.sessions.find((s) => s.sessionId === snap.activeSessionId);
+          root = active?.workspaceRoot || process.cwd();
+        }
+
+        const uploadDir = path.join(root, ".visualloop_uploads");
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const filePath = path.join(uploadDir, body.filename);
+
+        if (isImage && body.content.startsWith("data:")) {
+          const base64Data = body.content.split(",")[1];
+          fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+        } else {
+          fs.writeFileSync(filePath, body.content, "utf-8");
+        }
+
+        const relativeEntrypoint = path.relative(root, filePath);
+        const loaded = await loadArtifact(root, relativeEntrypoint, kind);
+
+        let session = this.store.getSnapshot().sessions.find((s) => s.workspaceRoot === root);
+        if (!session) {
+          session = this.store.registerSession({
+            adapterId: "workspace-explorer",
+            agentName: "Workspace Explorer",
+            workspaceRoot: root,
+          });
+        }
+
+        const artifactId = `art_${path.basename(body.filename, ext).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+        const publication = {
+          sessionId: session.sessionId,
+          artifactId,
+          revision: 1,
+          kind: loaded.kind,
+          entrypoint: relativeEntrypoint,
+          title: body.filename,
+          viewport: { width: 1024, height: 768, devicePixelRatio: 2, zoom: 1, scrollX: 0, scrollY: 0 },
+        };
+
+        const revision = this.store.publishArtifact(publication, loaded.contentHash, loaded.content);
+
         this.ws.broadcast({
           type: "artifact.published",
           timestamp: new Date().toISOString(),

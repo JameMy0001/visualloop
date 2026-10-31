@@ -152,6 +152,25 @@ export class CoreClient {
     }
     return res.json();
   }
+
+  public async uploadAsset(
+    filename: string,
+    content: string,
+    kind?: ArtifactKind,
+    workspaceRoot?: string
+  ): Promise<any> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}/v1/workspace/upload-asset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename, content, kind, workspaceRoot }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to upload asset: HTTP ${res.status}`);
+    }
+    return res.json();
+  }
 }
 
 export const coreClient = new CoreClient();

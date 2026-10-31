@@ -34,6 +34,8 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterKind, setFilterKind] = useState<string>("all");
   const [isActivating, setIsActivating] = useState<boolean>(false);
+  const folderInputRef = React.useRef<HTMLInputElement>(null);
+  const singleFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Scan workspace for assets
   const fetchAssets = async (rootToScan?: string) => {
@@ -142,6 +144,58 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
 
         {/* Directory Input & Quick Shortcuts */}
         <div className="px-6 py-3 bg-[#F9F9F9] border-b border-[#E5E5E5] space-y-2">
+          {/* Hidden HTML5 Native Folder & File Pickers */}
+          <input
+            ref={folderInputRef}
+            type="file"
+            // @ts-ignore
+            webkitdirectory=""
+            directory=""
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const nativePath = (file as any).path;
+                if (nativePath) {
+                  const parts = nativePath.split("/");
+                  parts.pop();
+                  const relParts = file.webkitRelativePath.split("/");
+                  relParts.pop();
+                  for (let i = 0; i < relParts.length - 1; i++) {
+                    parts.pop();
+                  }
+                  const detectedRoot = parts.join("/");
+                  setWorkspaceRoot(detectedRoot);
+                  fetchAssets(detectedRoot);
+                }
+              }
+            }}
+          />
+
+          <input
+            ref={singleFileInputRef}
+            type="file"
+            accept="image/*,.svg,.html,.htm,.pdf"
+            className="hidden"
+            onChange={async (e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const nativePath = (file as any).path;
+                if (nativePath) {
+                  await coreClient.selectWorkspaceAsset(nativePath);
+                  onClose();
+                } else {
+                  const reader = new FileReader();
+                  reader.onload = async () => {
+                    await coreClient.uploadAsset(file.name, reader.result as string);
+                    onClose();
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }
+            }}
+          />
+
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <input
@@ -152,6 +206,26 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
                 className="w-full pl-3 pr-8 py-1.5 text-xs bg-[#FFFFFF] border border-[#D4D4D4] rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={() => folderInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#FFFFFF] hover:bg-[#F2F2F2] border border-[#D4D4D4] text-[#171717] transition cursor-pointer shadow-xs"
+              title="Open macOS folder picker to select project"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-teal-600" />
+              <span>Browse Folder...</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => singleFileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#FFFFFF] hover:bg-[#F2F2F2] border border-[#D4D4D4] text-[#171717] transition cursor-pointer shadow-xs"
+              title="Select a single image or slide file directly"
+            >
+              <span>Choose File...</span>
+            </button>
+
             <button
               type="button"
               onClick={() => fetchAssets()}
