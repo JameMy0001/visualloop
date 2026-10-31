@@ -49,7 +49,7 @@ Instead of saying *“make the sun in the solar-system mockup bigger, but leave 
   <sub>Captured from the running VisualLoop browser UI and Core Server on commit 95a41ac. Mouse annotations, submitted feedback, source-file replacement, and revision publication use the actual application; the AI response is supplied by a deterministic local OpenAI-compatible test provider, not a live external model. This is not a native Tauri screen recording.</sub>
 </div>
 
-The walkthrough shows the intended experience: **prompt an AI → review an imperfect first result → open VisualLoop's floating preview → expand and circle three areas → write targeted corrections → send feedback → review an improved revision**. VisualLoop itself is the visual review and feedback layer, not the AI prompt interface shown at the start. The repository supports a separate model runner for revision handling; a genuine native AI-run recording must be verified separately. See the [native demo recording checklist](docs/DEMO_RECORDING.md).
+This capture begins in the **running VisualLoop web editor**: a flawed SVG draft is published into its actual Preview, three regions are circled using real mouse events, a correction note is entered, and **Send feedback** submits to the real Core Server. A local deterministic test provider returns a revised SVG; VisualLoop applies the source change and displays **Revision 2**. It does **not** show the initial AI generation prompt, a native Tauri window, or a live external-model response. For a fully native AI-run recording, see the [recording checklist](docs/DEMO_RECORDING.md).
 
 ### What the experience is designed to look like
 
