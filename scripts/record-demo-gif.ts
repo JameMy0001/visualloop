@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from "node:child_process";
+import { spawn, spawnSync, ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
@@ -7,6 +7,29 @@ import { GeminiCliAdapter } from "@visualloop/adapter-gemini-cli";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Inspect every screenshot before allowing it into the animated README demo.
+// A blank white capture often means React/Chrome had not rendered the preview.
+function assertNonBlankScreenshot(filePath: string): void {
+  const result = spawnSync(
+    "ffmpeg",
+    ["-hide_banner", "-loglevel", "error", "-i", filePath, "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"],
+    { maxBuffer: 64 * 1024 * 1024 }
+  );
+  if (result.error || result.status !== 0 || result.stdout.length < 3) {
+    throw new Error(`Unable to inspect screenshot ${filePath}: ${result.stderr?.toString() || result.error || "empty decode"}`);
+  }
+  const rgb = result.stdout;
+  const pixels = Math.floor(rgb.length / 3);
+  let visiblePixels = 0;
+  for (let i = 0; i + 2 < rgb.length; i += 3) {
+    if (rgb[i] < 245 || rgb[i + 1] < 245 || rgb[i + 2] < 245) visiblePixels++;
+  }
+  const visibleRatio = visiblePixels / pixels;
+  if (visibleRatio < 0.02) {
+    throw new Error(`Aborting blank/mostly-white GIF frame ${path.basename(filePath)} (${(visibleRatio * 100).toFixed(2)}% non-white pixels)`);
+  }
 }
 
 function checkUrl(url: string): Promise<boolean> {
@@ -76,7 +99,7 @@ class CdpClient {
 
 async function main() {
   console.log("==================================================");
-  console.log("   VISUALLOOP REAL DESKTOP DEMO GIF RECORDER");
+  console.log("   VISUALLOOP SCRIPTED BROWSER DEMO GIF RECORDER");
   console.log("==================================================");
 
   const framesDir = "/tmp/visualloop-frames";
@@ -185,6 +208,7 @@ async function main() {
       const filename = `frame_${String(frameIndex).padStart(2, "0")}.png`;
       const filepath = path.join(framesDir, filename);
       fs.writeFileSync(filepath, Buffer.from(res.data, "base64"));
+      assertNonBlankScreenshot(filepath);
       console.log(`  [Frame ${frameIndex}] Captured: ${label}`);
       frameIndex++;
     };
@@ -306,11 +330,20 @@ async function main() {
       });
     });
 
+    const verification = spawnSync(
+      "ffprobe",
+      ["-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames", "-of", "default=noprint_wrappers=1:nokey=1", outputGifPath],
+      { encoding: "utf-8" }
+    );
+    const gifFrames = Number(verification.stdout.trim());
+    if (verification.status !== 0 || !Number.isFinite(gifFrames) || gifFrames < 4) {
+      throw new Error(`Generated GIF failed frame-count validation: ${verification.stderr || verification.stdout}`);
+    }
     const stats = fs.statSync(outputGifPath);
     console.log(`\n==================================================`);
-    console.log(`[PASS] REAL DEMO GIF GENERATED SUCCESSFULLY!`);
+    console.log(`[PASS] SCRIPTED GIF GENERATED; NON-BLANK FRAMES VALIDATED!`);
     console.log(`Path: ${outputGifPath}`);
-    console.log(`Size: ${(stats.size / 1024).toFixed(1)} KB`);
+    console.log(`Size: ${(stats.size / 1024).toFixed(1)} KB; frames: ${gifFrames}`);
     console.log(`==================================================\n`);
   } finally {
     console.log("Cleaning up child processes...");
