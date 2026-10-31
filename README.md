@@ -15,7 +15,7 @@ Review a UI in a floating preview, mark the exact region that needs work, and se
 [![MIT License](https://img.shields.io/badge/License-MIT-171717.svg)](LICENSE)
 [![Developer Preview](https://img.shields.io/badge/Status-Developer%20Preview-737373.svg)](#project-maturity)
 
-[Overview](#overview) · [Demo](#demo) · [Tech stack](#technology-stack) · [Architecture](#system-architecture) · [Getting started](#getting-started) · [Contributing](#contributing)
+[Overview](#overview) · [Demo](#demo) · [AI Agent Skill & Setup](#autonomous-ai-setup--agent-skill-สั่งให้-ai-เซ็ตอัพให้พร้อมใช้ทันที) · [Tech stack](#technology-stack) · [Architecture](#system-architecture) · [Getting started](#getting-started) · [Contributing](#contributing)
 
 </div>
 
@@ -234,6 +234,44 @@ The sequence describes the runner-driven flow. Automated test coverage for the p
 | Other agent adapters | Agent SDK contracts and Claude Code/Codex scaffolding | Automated Claude Code/Codex revision integration is not complete. |
 | Releases | CI and a cross-platform draft-release workflow are configured | No verified publicly distributed installer or stable release yet. |
 
+## Autonomous AI Setup & Agent Skill (สั่งให้ AI เซ็ตอัพให้พร้อมใช้ทันที)
+
+VisualLoop comes bundled with an official **Agent Skill** (`skills/visualloop/`) designed for autonomous integration with modern AI coding assistants (such as Cursor, Google Antigravity, Claude Code, Agy, and Codex).
+
+### 1. Zero-Friction Setup via AI Prompt
+You do not need to read through complex build steps. Simply clone the repository and prompt your AI coding agent:
+
+> *"Set up VisualLoop and make it ready to use"*
+>
+> หรือสั่งเป็นภาษาไทย: *"ช่วยเซ็ตอัพ VisualLoop ให้พร้อมใช้งานที"*
+
+Your AI assistant will detect `skills/visualloop/SKILL.md` and automatically run:
+```bash
+bash skills/visualloop/scripts/setup.sh
+```
+
+**What the setup script automates:**
+- [x] Verifies all development dependencies (Node.js 22, pnpm, Rust, Cargo, Tauri 2).
+- [x] Automatically configures and launches the VisualLoop Core Server daemon on `http://127.0.0.1:4178`.
+- [x] Compiles and installs `/Applications/VisualLoop.app`.
+- [x] Establishes local authentication tokens (`~/.visualloop/auth_token`) and AI provider models.
+
+### 2. Autonomous Visual Generation & Circling Workflow
+Whenever you instruct an AI assistant to create or modify visual artifacts:
+> *"Design a cloud architecture diagram in SVG"* or *"Generate a sleek telemetry dashboard in HTML"*
+
+The AI agent autonomously follows the VisualLoop Agent Skill protocol:
+1. **Writes the file to disk** (e.g., `dashboard.html` or `diagram.svg`).
+2. **Pops up VisualLoop on your screen** with one command:
+   ```bash
+   bash skills/visualloop/scripts/open.sh "<path-to-file>"
+   ```
+3. VisualLoop immediately renders the artifact in the 1024x768 canvas.
+4. You circle the exact areas requiring adjustment, attach instructions, and click **Send feedback**.
+5. **Live AI Revision**: The sweeping laser scanner and glassmorphic HUD visually track the AI synthesis in real time (via Gemini 3.8 Flash, OpenAI o1/gpt-4o, or Claude 3.7 Sonnet). The source file is updated atomically with versioned backups in `.visualloop_backups/`, and Revision 2 is hot-reloaded live on your canvas.
+
+---
+
 ## Getting started
 
 **This is a source-build developer preview**, not a polished one-click installation.
@@ -315,6 +353,7 @@ adapters/gemini-cli/        Gemini API-backed adapter and revision safeguards
 adapters/claude-code/       Adapter scaffold
 adapters/codex/             Adapter scaffold
 
+skills/visualloop/          Autonomous Agent Skill package and automation scripts
 scripts/                    Launcher, Gemini runner, demonstrations, E2E checks
 examples/                   Example artifacts
 docs/                       Release-readiness notes and demonstration assets
