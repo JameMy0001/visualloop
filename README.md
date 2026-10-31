@@ -41,8 +41,12 @@ Instead of saying *“make the sun in the solar-system mockup bigger, but leave 
 <div align="center">
   <img src="docs/assets/visualloop-demo.gif" alt="Scripted VisualLoop interface walkthrough with a preview, annotation, feedback, and revised artifact" width="800" />
   <br />
+  <a href="docs/assets/visualloop-demo.gif">Open the animated GIF directly</a>
+  <br />
   <sub>Scripted UI walkthrough. This GIF is not evidence of a native Tauri + live Gemini model end-to-end run; see <a href="#verification-and-testing">Verification and testing</a>.</sub>
 </div>
+
+See [how to capture and verify an authentic native AI demo](docs/DEMO_RECORDING.md). The current GIF remains a scripted walkthrough, not a recorded live model run.
 
 ### What the experience is designed to look like
 
@@ -126,6 +130,20 @@ The icons below represent tools **actually referenced by the current source and 
 > **Integration boundary:** Gemini is an external API used by the optional runner, not a bundled local model. Claude Code and Codex are adapter scaffolds rather than finished integrations.
 
 ---
+
+## Extensible AI provider adapters
+
+VisualLoop's review protocol is **not tied to Gemini**. An optional provider transport now allows the runner to select `gemini`, `openai`, `anthropic`, or an `openai-compatible` endpoint through environment variables. The Gemini API route remains the existing default. The other providers have mocked transport tests, but **have not yet been verified end-to-end with live paid APIs or native desktop captures**.
+
+```bash
+# Example: use your own OpenAI API credentials
+export VISUALLOOP_AI_PROVIDER=openai
+export VISUALLOOP_AI_MODEL=YOUR_MODEL_ID
+export OPENAI_API_KEY="your-api-key"
+pnpm agent:ai examples/solar-system.svg
+```
+
+The `ModelProvider` plugin interface is open for contributors to implement other services, subject to the service's API format and access requirements. See [Provider adapter guide](docs/PROVIDER_ADAPTERS.md).
 
 ## System architecture
 

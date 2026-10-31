@@ -547,3 +547,9 @@ export class GeminiCliAdapter extends BaseAgentAdapter implements AgentAdapter {
     return this.activeSession;
   }
 }
+
+export {
+  registerModelProvider, providerConfigFromEnv, hasModelCredentials,
+  generateRevisionWithProvider, extractSourceCode,
+} from "./modelProviders.js";
+export type { ProviderConfig, ProviderPlugin, ModelInput, ProviderOutput } from "./modelProviders.js";

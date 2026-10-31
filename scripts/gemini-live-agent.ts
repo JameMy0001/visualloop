@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { GeminiCliAdapter, applyRevisionSafely } from "@visualloop/adapter-gemini-cli";
+import { GeminiCliAdapter, applyRevisionSafely, providerConfigFromEnv, hasModelCredentials, generateRevisionWithProvider } from "@visualloop/adapter-gemini-cli";
 
 function countLines(str: string): number {
   return str.split("\n").length;
@@ -29,6 +29,7 @@ async function main() {
   const filename = path.basename(targetFilePath);
   const serverUrl = process.env.VISUALLOOP_SERVER_URL || "http://127.0.0.1:4178";
   const secretToken = process.env.VISUALLOOP_SECRET_TOKEN;
+  const modelConfig = providerConfigFromEnv();
 
   console.log("==================================================");
   console.log("   VISUALLOOP REAL GEMINI AI AGENT RUNNER");
@@ -36,13 +37,8 @@ async function main() {
   console.log(`Target File:  ${targetFilePath} (${kind.toUpperCase()})`);
   console.log(`Workspace:    ${workspaceRoot}`);
   console.log(`Core Server:  ${serverUrl}`);
-  console.log(
-    `Gemini Key:   ${
-      process.env.GEMINI_API_KEY
-        ? "CONFIGURED (Live Model Active)"
-        : "NOT SET (Running in Interactive/Review Mode)"
-    }`
-  );
+  console.log(`Provider: ${modelConfig.provider} / ${modelConfig.model}`);
+  console.log(`Credentials: ${hasModelCredentials(modelConfig) ? "CONFIGURED" : "NOT SET (feedback stays pending)"}`);
   console.log("--------------------------------------------------");
 
   const adapter = new GeminiCliAdapter({ serverUrl, secretToken });
@@ -99,15 +95,22 @@ async function main() {
 
     const currentCode = fs.readFileSync(targetFilePath, "utf-8");
 
-    if (process.env.GEMINI_API_KEY) {
-      console.log("\n[AI Active] Calling Gemini AI Model with annotations and screenshot...");
+    if (hasModelCredentials(modelConfig)) {
+      console.log(`\n[AI Active] Calling ${modelConfig.provider} with annotations and screenshot...`);
 
       try {
-        const { revisedCode, modelUsed } = await adapter.generateRevisionWithGemini({
-          sourceCode: currentCode,
-          feedback,
-          model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-        });
+        const providerResult = await generateRevisionWithProvider({
+          prompt: [
+            "You are an expert software engineer. Return the complete updated source code only.",
+            "CURRENT SOURCE CODE:",
+            currentCode,
+            "VISUAL FEEDBACK:",
+            adapter.formatFeedbackPrompt(feedback),
+          ].join("\n\n"),
+          screenshotDataUrl: feedback.annotatedScreenshotDataUrl,
+        }, modelConfig);
+        const revisedCode = providerResult.source;
+        const modelUsed = providerResult.provider + "/" + providerResult.model;
 
         // Apply revision safely with syntax validation and versioned backups
         const result = applyRevisionSafely({
@@ -131,7 +134,7 @@ async function main() {
         }
 
         currentRevision += 1;
-        console.log(`  [OK] Gemini (${modelUsed}) atomically modified ${filename} on disk.`);
+        console.log(`  [OK] ${modelUsed} modified ${filename} on disk.`);
 
         // Publish Revision N+1
         const nextRev = await adapter.publishArtifact({
@@ -148,7 +151,7 @@ async function main() {
         console.log(">>> VisualLoop preview updated automatically! <<<\n");
         return true; // Acknowledge feedback receipt
       } catch (err: any) {
-        console.error("  [FAIL] Error during Gemini AI code generation:", err.message);
+        console.error("  [FAIL] Error during model code generation:", err.message);
         throw err; // Let watchFeedback keep it queued for retry
       }
     } else {
