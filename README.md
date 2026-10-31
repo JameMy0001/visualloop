@@ -39,14 +39,14 @@ Instead of saying *“make the sun in the solar-system mockup bigger, but leave 
 ## Demo
 
 <div align="center">
-  <img src="docs/assets/visualloop-demo.gif" alt="Scripted VisualLoop interface walkthrough with a preview, annotation, feedback, and revised artifact" width="800" />
+  <img src="docs/assets/visualloop-workflow-demo.gif" alt="16.8-second animated simulated workflow: AI prompt, generated landscape in VisualLoop preview, mouse-drawn circle annotation, Submit Feedback, and updated revision" width="800" />
   <br />
-  <a href="docs/assets/visualloop-demo.gif">Open the animated GIF directly</a>
+  <a href="docs/assets/visualloop-workflow-demo.gif">Open the 16-second animated GIF</a>
   <br />
-  <sub>Scripted UI walkthrough. This GIF is not evidence of a native Tauri + live Gemini model end-to-end run; see <a href="#verification-and-testing">Verification and testing</a>.</sub>
+  <sub>Animated workflow mockup (16.8 seconds): generate landscape &rarr; preview &rarr; circle the sun &rarr; send feedback &rarr; revised preview. The UI and AI responses are simulated, not an actual desktop recording or live model call; see <a href="#verification-and-testing">Verification and testing</a>.</sub>
 </div>
 
-See [how to capture and verify an authentic native AI demo](docs/DEMO_RECORDING.md). The current GIF remains a scripted walkthrough, not a recorded live model run.
+The animation demonstrates the intended interaction sequence, including a visibly smaller sun and warmer glow in the second revision. It is a **concept simulation**, not proof of end-to-end AI automation. See [the authentic recording checklist](docs/DEMO_RECORDING.md) for how to replace it with a verified native demonstration.
 
 ### What the experience is designed to look like
 
