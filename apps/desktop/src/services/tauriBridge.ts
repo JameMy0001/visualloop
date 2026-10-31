@@ -242,7 +242,7 @@ class TauriBridge {
             : "";
           return {
             provider: parsed.provider || "gemini",
-            model: parsed.model || "gemini-2.5-pro",
+            model: parsed.model || "gemini-3.8-flash",
             hasApiKey,
             maskedApiKey: masked,
             baseUrl: parsed.baseUrl,
@@ -275,7 +275,7 @@ class TauriBridge {
         const hasApiKey = Boolean(updated.apiKey && updated.apiKey.length > 0);
         return {
           provider: updated.provider || "gemini",
-          model: updated.model || "gemini-2.5-pro",
+          model: updated.model || "gemini-3.8-flash",
           hasApiKey,
           maskedApiKey: hasApiKey ? "••••••••" : "",
           baseUrl: updated.baseUrl,

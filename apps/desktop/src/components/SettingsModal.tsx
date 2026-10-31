@@ -23,9 +23,15 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: "gemini",
     name: "Google Gemini",
-    defaultModel: "gemini-2.5-pro",
-    recommendedModels: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro"],
-    keyPlaceholder: "AIzaSy...",
+    defaultModel: "gemini-3.8-flash",
+    recommendedModels: [
+      "gemini-3.8-flash",
+      "gemini-3.8-flash-lite",
+      "gemini-3.5-flash",
+      "gemini-flash-latest",
+      "gemini-3.1-pro-preview",
+    ],
+    keyPlaceholder: "AIzaSy... or AQ.Ab8...",
     envKeyName: "GEMINI_API_KEY",
   },
   {
@@ -65,7 +71,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
   const [apiKeyInput, setApiKeyInput] = useState<string>("");
-  const [modelInput, setModelInput] = useState<string>("gemini-2.5-pro");
+  const [modelInput, setModelInput] = useState<string>("gemini-3.8-flash");
   const [baseUrlInput, setBaseUrlInput] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
 
@@ -97,7 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (isMounted && info) {
           setActiveInfo(info);
           setSelectedProvider(info.provider);
-          setModelInput(info.model || "gemini-2.5-pro");
+          setModelInput(info.model || "gemini-3.8-flash");
           setBaseUrlInput(info.baseUrl || "");
           setApiKeyInput(""); // Keep input clean; masked key shown in badge
         }

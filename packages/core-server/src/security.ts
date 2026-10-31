@@ -84,7 +84,7 @@ export function resolveOrCreateAuthToken(explicitToken?: string): string {
 }
 
 export const DEFAULT_PROVIDER_MODELS: Record<string, string> = {
-  gemini: "gemini-2.5-pro",
+  gemini: "gemini-3.8-flash",
   openai: "gpt-4o",
   anthropic: "claude-3-7-sonnet-20250219",
   "openai-compatible": "local-model",
@@ -164,7 +164,7 @@ export function resolveCurrentProviderInfo(customConfigPath?: string) {
     fileConfig.providerModels?.[provider] ||
     (fileConfig.provider === provider ? fileConfig.model : undefined) ||
     DEFAULT_PROVIDER_MODELS[provider] ||
-    "gemini-2.5-pro";
+    "gemini-3.8-flash";
 
   const envKey = process.env[PROVIDER_ENV_KEYS[provider]] || process.env.VISUALLOOP_AI_API_KEY;
   const keyFromFile = fileConfig.providerKeys?.[provider] || (fileConfig.provider === provider ? fileConfig.apiKey : undefined);

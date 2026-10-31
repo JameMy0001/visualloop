@@ -133,7 +133,7 @@ export class CoreServer {
         const modelToSave =
           body.model && body.model.trim().length > 0
             ? body.model.trim()
-            : providerModels[body.provider] || DEFAULT_PROVIDER_MODELS[body.provider] || "gemini-2.5-pro";
+            : providerModels[body.provider] || DEFAULT_PROVIDER_MODELS[body.provider] || "gemini-3.8-flash";
         providerModels[body.provider] = modelToSave;
 
         const updatedConfig = {
