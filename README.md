@@ -42,11 +42,11 @@ Instead of saying *“make the sun in the solar-system mockup bigger, but leave 
 ## Demo
 
 <div align="center">
-  <img src="docs/assets/visualloop-ui-workflow-demo.gif" alt="Animated VisualLoop UI walkthrough: prompt an AI to build a dashboard, inspect the flawed first result in a floating preview, expand and circle three issues, write correction instructions, send feedback, and see a refined second revision" width="800" />
+  <img src="docs/assets/visualloop-app-capture.gif" alt="VisualLoop running web UI: live SVG preview, three real mouse-drawn annotations, feedback submission to local core, and verified revision 2" width="800" />
   <br />
-  <a href="docs/assets/visualloop-ui-workflow-demo.gif">View the full animated demo (77 frames, ~17 seconds)</a>
+  <a href="docs/assets/visualloop-app-capture.gif">Watch the VisualLoop app workflow capture</a>
   <br />
-  <sub>UI-based animated mock-up built to resemble VisualLoop's existing mini overlay and expanded review editor. The first-pass dashboard, AI prompt screen, cursor actions and revised result are scripted for illustration—not a native screen recording or proof of a live AI API call.</sub>
+  <sub>Captured from the running VisualLoop browser UI and Core Server on commit 95a41ac. Mouse annotations, submitted feedback, source-file replacement, and revision publication use the actual application; the AI response is supplied by a deterministic local OpenAI-compatible test provider, not a live external model. This is not a native Tauri screen recording.</sub>
 </div>
 
 The walkthrough shows the intended experience: **prompt an AI → review an imperfect first result → open VisualLoop's floating preview → expand and circle three areas → write targeted corrections → send feedback → review an improved revision**. VisualLoop itself is the visual review and feedback layer, not the AI prompt interface shown at the start. The repository supports a separate model runner for revision handling; a genuine native AI-run recording must be verified separately. See the [native demo recording checklist](docs/DEMO_RECORDING.md).
