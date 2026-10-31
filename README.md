@@ -1,5 +1,8 @@
 <div align="center">
 
+<img src="docs/assets/logo.svg" width="96" height="96" alt="VisualLoop Logo" />
+<br /><br />
+
 # VisualLoop
 
 ### See it. Circle it. Fix it.

@@ -39,7 +39,12 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
       }`}
     >
       {/* Title & Quiet Status */}
-      <div data-tauri-drag-region className="flex items-center gap-2 cursor-move pointer-events-none">
+      <div data-tauri-drag-region className="flex items-center gap-1.5 cursor-move pointer-events-none">
+        <div data-tauri-drag-region className="w-3.5 h-3.5 rounded-[3px] bg-[#000000] flex items-center justify-center flex-shrink-0">
+          <svg viewBox="0 0 1024 1024" className="w-2.5 h-2.5" fill="none">
+            <polygon points="220,240 350,240 512,542 674,240 804,240 512,784" fill="#FFFFFF" />
+          </svg>
+        </div>
         <span data-tauri-drag-region className="text-xs font-semibold text-[#171717] tracking-tight">
           VisualLoop
         </span>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="100%" height="100%">
+  <defs>
+    <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#EDEDED" />
+    </linearGradient>
+  </defs>
+  <!-- Pure black background -->
+  <rect width="1024" height="1024" fill="#000000" />
+  <!-- Minimalist Geometric V -->
+  <polygon points="220,240 350,240 512,542 674,240 804,240 512,784" fill="url(#vGrad)" />
+</svg>
