@@ -19,6 +19,7 @@ import {
   AnnotationType,
   FeedbackSubmission,
   ArtifactKind,
+  ServerEvent,
   normalizeBounds,
   denormalizeBounds,
   normalizePoint,
@@ -30,6 +31,7 @@ import {
 } from "@visualloop/annotation-engine";
 import { ArtifactViewer } from "./ArtifactViewer";
 import { ActiveArtifactInfo, coreClient } from "../services/coreClient";
+import { eventClient } from "../services/eventClient";
 import { FeedbackUIStatus } from "../state/useVisualLoopStore";
 import { tauriBridge } from "../services/tauriBridge";
 
@@ -44,6 +46,18 @@ interface ExpandedEditorProps {
   onClose: () => void;
   onSubmitFeedback: (submission: FeedbackSubmission) => Promise<boolean | void>;
   feedbackStatus?: FeedbackUIStatus;
+}
+
+export function parseModelOption(option: string): { provider: string; model: string } {
+  if (!option) return { provider: "gemini", model: "gemini-3.8-flash" };
+  const colonIdx = option.indexOf(":");
+  if (colonIdx === -1) {
+    return { provider: "gemini", model: option };
+  }
+  return {
+    provider: option.slice(0, colonIdx),
+    model: option.slice(colonIdx + 1),
+  };
 }
 
 export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
@@ -106,15 +120,34 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 100) / 10;
       setRevisionSeconds(elapsed);
-      if (elapsed >= 3.5) {
-        setRevisionStage(3);
-      } else if (elapsed >= 0.8) {
-        setRevisionStage(2);
-      }
     }, 100);
 
     return () => clearInterval(interval);
   }, [isRevising]);
+
+  useEffect(() => {
+    const unsub = eventClient.onEvent((event: ServerEvent) => {
+      if (event.type === "preview.rendering") {
+        setRevisionStage(2);
+      } else if (event.type === "preview.ready" || event.type === "revision.published") {
+        setRevisionStage(3);
+      } else if (event.type === "feedback.failed") {
+        setIsRevising(false);
+        const errMsg = (event.payload as any)?.error || "AI modification failed.";
+        setSubmitError(errMsg);
+      }
+    });
+
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (feedbackStatus === "failed") {
+      setIsRevising(false);
+    }
+  }, [feedbackStatus]);
 
   useEffect(() => {
     let isMounted = true;
@@ -414,7 +447,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
     const activeSessionId = artifact?.sessionId || "sess_active";
     const activeArtifactId = artifact?.artifactId || "art_active";
     const activeRevision = artifact?.revision || 1;
-    const [preferredProvider, preferredModel] = selectedModelOption.split(":");
+    const { provider: preferredProvider, model: preferredModel } = parseModelOption(selectedModelOption);
 
     const submission: FeedbackSubmission = {
       protocolVersion: "1.0",
@@ -791,7 +824,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                     </div>
                     <div className="flex items-center gap-2 text-[11px] font-mono text-[#94a3b8]">
                       <span className="px-1.5 py-0.5 rounded bg-[#1e293b] text-[#5eead4]">
-                        {selectedModelOption.split(":")[1] || "gemini-3.8-flash"}
+                        {parseModelOption(selectedModelOption).model}
                       </span>
                       <span className="text-[#38bdf8] font-bold">Elapsed: {revisionSeconds.toFixed(1)}s</span>
                     </div>
@@ -841,7 +874,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                   <div>
                     <span className="font-bold text-[#ffffff]">Revision {revisionSuccessBanner.rev} Applied Successfully!</span>
                     <span className="text-[#5eead4] ml-2 text-[11px]">
-                      Synthesized by {selectedModelOption.split(":")[1]} in {revisionSuccessBanner.duration.toFixed(1)}s
+                      Synthesized by {parseModelOption(selectedModelOption).model} in {revisionSuccessBanner.duration.toFixed(1)}s
                     </span>
                   </div>
                 </div>
@@ -855,6 +888,23 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                     ×
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Layer 7: Error Banner (Instant Notification on Failure) */}
+            {submitError && (
+              <div className="absolute top-3 inset-x-3 z-30 p-2.5 rounded-[10px] bg-[#450a0a]/95 backdrop-blur-md border border-[#dc2626] text-[#fecaca] shadow-xl flex items-center justify-between text-xs animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white">[!] AI Revision Failed:</span>
+                  <span className="text-[11px] text-[#fca5a5]">{submitError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSubmitError(null)}
+                  className="text-[#fecaca] hover:text-white text-sm font-bold px-1.5 py-0.5 rounded hover:bg-white/10 cursor-pointer"
+                >
+                  ×
+                </button>
               </div>
             )}
           </div>
@@ -889,7 +939,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#64748b]">Model:</span>
-                    <span className="font-mono text-[#a78bfa]">{selectedModelOption.split(":")[1]}</span>
+                    <span className="font-mono text-[#a78bfa]">{parseModelOption(selectedModelOption).model}</span>
                   </div>
                 </div>
 

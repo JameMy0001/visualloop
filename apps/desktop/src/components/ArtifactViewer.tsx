@@ -32,11 +32,11 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
     }
   }, [onDimensionsReady, artifact]);
 
-  // Sanitize SVG or wrap HTML in sandboxed CSP container or pass through image data URL
+  // Sanitize SVG or wrap HTML in sandboxed CSP container or pass through image/PDF data URL
   const renderedContent = useMemo(() => {
     if (!artifact?.content) return null;
 
-    if (artifact.kind === "image") {
+    if (artifact.kind === "image" || artifact.kind === "pdf") {
       return artifact.content;
     }
 
@@ -146,6 +146,28 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
           alt={artifact.title || "Image Artifact"}
           className="max-w-full max-h-full object-contain pointer-events-none select-none rounded-lg"
         />
+      ) : artifact.kind === "pdf" ? (
+        <div className="relative w-full h-full flex flex-col bg-[#F8FAFC]">
+          <div className="px-3 py-1.5 bg-[#F1F5F9] border-b border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#64748B] flex-shrink-0">
+            <span className="font-semibold text-[#334155]">PDF Document Preview</span>
+            <span className="text-[10px] text-[#94A3B8]">
+              Tip: Interactive region circling is optimized for SVG and HTML files
+            </span>
+          </div>
+          <div className="flex-1 w-full h-full min-h-0 overflow-hidden">
+            <object
+              data={renderedContent}
+              type="application/pdf"
+              className="w-full h-full border-0 pointer-events-auto"
+            >
+              <iframe
+                title={artifact.title || "PDF Document"}
+                src={renderedContent}
+                className="w-full h-full border-0 pointer-events-auto"
+              />
+            </object>
+          </div>
+        </div>
       ) : (
         <iframe
           title={artifact.title || "Artifact Preview"}

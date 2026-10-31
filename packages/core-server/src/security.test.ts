@@ -175,4 +175,98 @@ describe("Security Validation & Negative Testing", () => {
       });
     });
   });
+
+  describe("Workspace Asset Upload Path Traversal Prevention (Issue 1 Regression)", () => {
+    let server: CoreServer;
+    let baseUrl: string;
+    const testSecret = "sec_upload_test_token";
+
+    beforeAll(async () => {
+      server = new CoreServer({
+        port: 4186,
+        host: "127.0.0.1",
+        secretToken: testSecret,
+        requireAuth: true,
+      });
+      baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+      await server.stop();
+    });
+
+    it("strictly rejects path traversal attempts with ../ in filename", async () => {
+      const res = await fetch(`${baseUrl}/v1/workspace/upload-asset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-VisualLoop-Token": testSecret,
+        },
+        body: JSON.stringify({
+          filename: "../../../etc/cron.d/malicious.sh",
+          content: "echo hacked",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain("path traversal");
+    });
+
+    it("strictly rejects absolute path and slash traversal attempts", async () => {
+      const res = await fetch(`${baseUrl}/v1/workspace/upload-asset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-VisualLoop-Token": testSecret,
+        },
+        body: JSON.stringify({
+          filename: "/tmp/evil.svg",
+          content: "<svg><text>evil</text></svg>",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain("path traversal");
+    });
+
+    it("rejects unsupported extensions (e.g. .exe, .sh)", async () => {
+      const res = await fetch(`${baseUrl}/v1/workspace/upload-asset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-VisualLoop-Token": testSecret,
+        },
+        body: JSON.stringify({
+          filename: "malware.exe",
+          content: "MZ...",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain("Unsupported file extension");
+    });
+
+    it("accepts valid SVG file inside upload directory", async () => {
+      const res = await fetch(`${baseUrl}/v1/workspace/upload-asset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-VisualLoop-Token": testSecret,
+        },
+        body: JSON.stringify({
+          filename: "test_graphic.svg",
+          content: "<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' /></svg>",
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.publication.title).toBe("test_graphic.svg");
+      expect(data.publication.entrypoint).toContain(".visualloop_uploads");
+    });
+  });
 });

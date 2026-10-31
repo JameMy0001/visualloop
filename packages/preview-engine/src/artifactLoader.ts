@@ -24,10 +24,11 @@ export async function loadArtifact(
 
   const isImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(ext);
   const isSvg = ext === ".svg";
+  const isPdf = ext === ".pdf";
   const isHtml = [".html", ".htm"].includes(ext);
 
   const kind: ArtifactKind =
-    explicitKind || (isSvg ? "svg" : isImage ? "image" : isHtml ? "html" : "html");
+    explicitKind || (isSvg ? "svg" : isImage ? "image" : isPdf ? "pdf" : "html");
 
   const rawBuffer = fs.readFileSync(verifiedPath);
   const contentHash = crypto.createHash("sha256").update(rawBuffer).digest("hex");
@@ -47,6 +48,9 @@ export async function loadArtifact(
         ? "image/gif"
         : "image/png";
     content = `data:${mime};base64,${rawBuffer.toString("base64")}`;
+    rawContent = content;
+  } else if (kind === "pdf") {
+    content = `data:application/pdf;base64,${rawBuffer.toString("base64")}`;
     rawContent = content;
   } else if (kind === "svg") {
     rawContent = rawBuffer.toString("utf-8");

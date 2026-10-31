@@ -413,10 +413,33 @@ export class CoreServer {
           return reply.status(400).send({ error: "Missing filename or content in request body" });
         }
 
-        const ext = path.extname(body.filename).toLowerCase();
+        const rawFilename = body.filename.trim();
+        if (
+          !rawFilename ||
+          rawFilename.includes("..") ||
+          rawFilename.includes("/") ||
+          rawFilename.includes("\\") ||
+          rawFilename.includes("\0")
+        ) {
+          return reply.status(400).send({ error: "Invalid filename: path traversal characters rejected" });
+        }
+
+        const safeFilename = path.basename(rawFilename);
+        const ext = path.extname(safeFilename).toLowerCase();
+        const allowedExtensions = [
+          ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp",
+          ".svg", ".html", ".htm", ".pdf"
+        ];
+        if (!allowedExtensions.includes(ext)) {
+          return reply.status(400).send({
+            error: `Unsupported file extension "${ext}". Allowed: ${allowedExtensions.join(", ")}`,
+          });
+        }
+
         const isImage = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(ext);
         const isSvg = ext === ".svg";
-        const kind: ArtifactKind = body.kind || (isImage ? "image" : isSvg ? "svg" : "html");
+        const isPdf = ext === ".pdf";
+        const kind: ArtifactKind = body.kind || (isImage ? "image" : isSvg ? "svg" : isPdf ? "pdf" : "html");
 
         let root = body.workspaceRoot;
         if (!root || !root.trim()) {
@@ -425,13 +448,17 @@ export class CoreServer {
           root = active?.workspaceRoot || process.cwd();
         }
 
-        const uploadDir = path.join(root, ".visualloop_uploads");
+        const uploadDir = path.resolve(root, ".visualloop_uploads");
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
-        const filePath = path.join(uploadDir, body.filename);
+        const filePath = path.resolve(uploadDir, safeFilename);
 
-        if (isImage && body.content.startsWith("data:")) {
+        if (!filePath.startsWith(uploadDir + path.sep)) {
+          return reply.status(400).send({ error: "Path traversal violation: file must reside strictly inside upload directory" });
+        }
+
+        if ((isImage || isPdf) && body.content.startsWith("data:")) {
           const base64Data = body.content.split(",")[1];
           fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
         } else {
@@ -530,23 +557,25 @@ export class CoreServer {
 
     this.fastify.get("/v1/feedback/pending", async (request, reply) => {
       const { sessionId } = request.query as { sessionId?: string };
-      if (!sessionId) {
-        return reply.status(400).send({ error: "sessionId query parameter required" });
+      const targetSessionId = sessionId || this.store.getSnapshot().activeSessionId;
+      if (!targetSessionId) {
+        return reply.status(400).send({ error: "sessionId query parameter required or active session needed" });
       }
 
-      const pending = this.store.getPendingFeedback(sessionId);
-      return reply.send({ sessionId, pending, count: pending.length });
+      const pending = this.store.getPendingFeedback(targetSessionId);
+      return reply.send({ sessionId: targetSessionId, pending, count: pending.length });
     });
 
     this.fastify.get("/v1/feedback/latest", async (request, reply) => {
       const { sessionId } = request.query as { sessionId?: string };
-      if (!sessionId) {
-        return reply.status(400).send({ error: "sessionId query parameter required" });
+      const targetSessionId = sessionId || this.store.getSnapshot().activeSessionId;
+      if (!targetSessionId) {
+        return reply.status(400).send({ error: "sessionId query parameter required or active session needed" });
       }
 
       // Return next pending in queue, or latest recorded feedback
       const feedback =
-        this.store.getNextPendingFeedback(sessionId) || this.store.getLatestFeedback(sessionId);
+        this.store.getNextPendingFeedback(targetSessionId) || this.store.getLatestFeedback(targetSessionId);
       if (!feedback) {
         return reply.status(404).send({ error: "No feedback found for session" });
       }
@@ -594,28 +623,52 @@ export class CoreServer {
         this.store.getSession(submission.sessionId) ||
         snap.sessions.find((s) => s.sessionId === snap.activeSessionId);
       if (!session) {
-        console.info("[CoreServer] processFeedbackWithAI: session not found");
+        const errMsg = "Session not found for feedback submission";
+        console.info("[CoreServer] processFeedbackWithAI:", errMsg);
+        this.ws.broadcast({
+          type: "feedback.failed",
+          timestamp: new Date().toISOString(),
+          payload: { feedbackId: submission.feedbackId, error: errMsg, recoverable: false },
+        });
         return false;
       }
 
       const active = snap.activeArtifact;
       if (!active || active.artifactId !== submission.artifactId) {
-        console.info("[CoreServer] processFeedbackWithAI: active artifact mismatch", {
+        const errMsg = "Active artifact mismatch or artifact not loaded";
+        console.info("[CoreServer] processFeedbackWithAI:", errMsg, {
           activeId: active?.artifactId,
           submissionId: submission.artifactId,
+        });
+        this.ws.broadcast({
+          type: "feedback.failed",
+          timestamp: new Date().toISOString(),
+          payload: { feedbackId: submission.feedbackId, error: errMsg, recoverable: false },
         });
         return false;
       }
 
       // Only attempt automated source-code revision on SVG and HTML code
       if (active.kind !== "svg" && active.kind !== "html") {
-        console.info("[CoreServer] processFeedbackWithAI: artifact kind is not svg or html:", active.kind);
+        const errMsg = `Direct source-code revision only supports SVG and HTML artifacts (selected: ${active.kind})`;
+        console.info("[CoreServer] processFeedbackWithAI:", errMsg);
+        this.ws.broadcast({
+          type: "feedback.failed",
+          timestamp: new Date().toISOString(),
+          payload: { feedbackId: submission.feedbackId, error: errMsg, recoverable: false },
+        });
         return false;
       }
 
       const targetFilePath = path.resolve(session.workspaceRoot, active.entrypoint);
       if (!fs.existsSync(targetFilePath)) {
-        console.info("[CoreServer] processFeedbackWithAI: file not found at", targetFilePath);
+        const errMsg = `Target file not found at ${targetFilePath}`;
+        console.info("[CoreServer] processFeedbackWithAI:", errMsg);
+        this.ws.broadcast({
+          type: "feedback.failed",
+          timestamp: new Date().toISOString(),
+          payload: { feedbackId: submission.feedbackId, error: errMsg, recoverable: false },
+        });
         return false;
       }
 
@@ -649,9 +702,29 @@ export class CoreServer {
       };
 
       if (!hasModelCredentials(effectiveConfig)) {
-        console.info("[CoreServer] processFeedbackWithAI: no credentials for", effectiveConfig.provider);
+        const errMsg = `No API key configured for provider "${effectiveConfig.provider}". Please set VISUALLOOP_AI_API_KEY, ${PROVIDER_ENV_KEYS[effectiveConfig.provider]}, or configure it in Settings.`;
+        console.warn("[CoreServer] processFeedbackWithAI:", errMsg);
+        this.ws.broadcast({
+          type: "feedback.failed",
+          timestamp: new Date().toISOString(),
+          payload: {
+            feedbackId: submission.feedbackId,
+            error: errMsg,
+            recoverable: false,
+          },
+        });
         return false;
       }
+
+      const nextRevNumber = (active.revision || 1) + 1;
+      this.ws.broadcast({
+        type: "preview.rendering",
+        timestamp: new Date().toISOString(),
+        payload: {
+          artifactId: active.artifactId,
+          revision: nextRevNumber,
+        },
+      });
 
       const currentCode = fs.readFileSync(targetFilePath, "utf-8");
       const annotationsList = submission.annotations
@@ -677,7 +750,6 @@ export class CoreServer {
         effectiveConfig
       );
 
-      const nextRevNumber = (active.revision || 1) + 1;
       const safeResult = applyRevisionSafely({
         targetFilePath,
         revisedCode: providerResult.source,
@@ -686,7 +758,17 @@ export class CoreServer {
       });
 
       if (!safeResult.success) {
-        console.warn("[CoreServer] Safe revision check rejected model output:", safeResult.error);
+        const errMsg = safeResult.error || "Revision validation rejected model output";
+        console.warn("[CoreServer] Safe revision check rejected model output:", errMsg);
+        this.ws.broadcast({
+          type: "feedback.failed",
+          timestamp: new Date().toISOString(),
+          payload: {
+            feedbackId: submission.feedbackId,
+            error: errMsg,
+            recoverable: false,
+          },
+        });
         return false;
       }
 
@@ -754,7 +836,17 @@ export class CoreServer {
       );
       return true;
     } catch (err: any) {
-      console.warn("[CoreServer] AI revision error:", err.message);
+      const errMsg = err?.message || "Unknown error during AI revision";
+      console.warn("[CoreServer] AI revision error:", errMsg);
+      this.ws.broadcast({
+        type: "feedback.failed",
+        timestamp: new Date().toISOString(),
+        payload: {
+          feedbackId: submission.feedbackId,
+          error: errMsg,
+          recoverable: false,
+        },
+      });
       return false;
     }
   }
