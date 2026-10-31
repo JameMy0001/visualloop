@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: visual-demo-capture-main
+  group: visual-demo-capture-fixed-20261101
   cancel-in-progress: true
 
 jobs:
