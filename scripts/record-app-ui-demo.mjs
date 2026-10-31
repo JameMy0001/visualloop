@@ -96,6 +96,6 @@ async function main(){
  const replacement='<div align="center">\n  <img src="docs/assets/visualloop-app-capture.gif" alt="VisualLoop running web UI: live SVG preview, three real mouse-drawn annotations, feedback submission to local core, and verified revision 2" width="800" />\n  <br />\n  <a href="docs/assets/visualloop-app-capture.gif">Watch the VisualLoop app workflow capture</a>\n  <br />\n  <sub>Captured from the running VisualLoop browser UI and Core Server on commit 95a41ac. Mouse annotations, submitted feedback, source-file replacement, and revision publication use the actual application; the AI response is supplied by a deterministic local OpenAI-compatible test provider, not a live external model. This is not a native Tauri screen recording.</sub>\n</div>';
  readme=readme.replace(re,replacement);
  fs.writeFileSync(readmePath,readme);
-}finally{try{cdp?.close()}catch{}for(const p of processes)try{p.kill("SIGTERM")}catch{}await new Promise(r=>aiServer.close(r));}
+}finally{try{cdp?.close()}catch{}for(const p of processes)try{p.kill("SIGTERM")}catch{}await Promise.race([new Promise(r=>aiServer.close(r)),sleep(1000)]);}
 }
-main().catch(e=>{console.error("CAPTURE FAILED:",e.stack||e);process.exitCode=1;try{cdp?.close()}catch{}for(const p of processes)try{p.kill("SIGTERM")}catch{}try{aiServer.close()}catch{}});
+main().then(()=>process.exit(0)).catch(e=>{console.error("CAPTURE FAILED:",e.stack||e);try{cdp?.close()}catch{}for(const p of processes)try{p.kill("SIGTERM")}catch{}try{aiServer.close()}catch{}process.exit(1)});
