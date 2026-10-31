@@ -34,6 +34,7 @@ async function move(x,y,tx,ty,n=8,kind){for(let i=1;i<=n;i++){const t=i/n;const 
 async function click(x,y){await cursor(x,y);await cdp.send("Input.dispatchMouseEvent",{type:"mousePressed",x,y,button:"left",clickCount:1});await cdp.send("Input.dispatchMouseEvent",{type:"mouseReleased",x,y,button:"left",clickCount:1})}
 async function box(query){return await ev('(()=>{const e=document.querySelector('+JSON.stringify(query)+');if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}})()')}
 async function main(){
+ try {
  await new Promise(r=>aiServer.listen(8099,"127.0.0.1",r));
  start("node",["packages/core-server/dist/cli.js","--no-auth"],{env:{...process.env,VISUALLOOP_NO_AUTH:"1",VISUALLOOP_AI_PROVIDER:"openai-compatible",VISUALLOOP_AI_MODEL:"local-model",OPENAI_COMPATIBLE_BASE_URL:"http://127.0.0.1:8099/v1",HOME:workspace}});
  await waitUntil(async()=>{try{return (await fetch("http://127.0.0.1:4178/v1/health")).ok}catch{return false}});
