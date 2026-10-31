@@ -130,6 +130,8 @@ describe("Core Server End-to-End API & Event Pipeline", () => {
     });
 
     await new Promise((resolve) => ws.on("open", resolve));
+    // Wait a tick for the initial state.snapshot message to arrive
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Initial handshake received
     expect(receivedEvents.length).toBeGreaterThanOrEqual(1);

@@ -122,12 +122,35 @@ registerModelProvider({
     const parts: any[] = [{ text: input.prompt }];
     const image = screenshot(input.screenshotDataUrl);
     if (image) parts.push({ inlineData: image });
-    const data = await requestJson(
-      "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(config.model) + ":generateContent",
-      { contents: [{ role: "user", parts }] },
-      { "x-goog-api-key": requiredKey(config) }, config.timeoutMs
-    );
-    return (data.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || "").join("\n");
+
+    const key = requiredKey(config);
+    const candidateModels = [config.model];
+    if (config.model === "gemini-3.8-flash" || config.model === "gemini-2.5-flash") {
+      candidateModels.push("gemini-3-flash-preview", "gemini-3.1-flash-lite");
+    }
+
+    let lastError: Error | null = null;
+    for (const modelName of candidateModels) {
+      try {
+        const data = await requestJson(
+          "https://generativelanguage.googleapis.com/v1beta/models/" +
+            encodeURIComponent(modelName) +
+            ":generateContent?key=" +
+            encodeURIComponent(key),
+          { contents: [{ role: "user", parts }] },
+          { "x-goog-api-key": key },
+          config.timeoutMs || 30000
+        );
+        const text = (data.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || "").join("\n");
+        if (text && text.trim().length > 0) {
+          return text;
+        }
+      } catch (err: any) {
+        lastError = err;
+        // Continue to fallback model if 404 or 503
+      }
+    }
+    throw lastError || new Error("Gemini generation failed for all candidate models.");
   },
 });
 registerModelProvider({

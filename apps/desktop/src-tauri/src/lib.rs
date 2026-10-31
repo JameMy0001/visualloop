@@ -326,8 +326,28 @@ fn save_provider_config(payload: ProviderConfigPayload) -> Result<ProviderInfoPa
     Ok(get_provider_config())
 }
 
+fn ensure_core_server() {
+    if let Ok(addr) = "127.0.0.1:4178".parse::<std::net::SocketAddr>() {
+        if std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(150)).is_ok() {
+            return;
+        }
+    }
+
+    if let Ok(home) = std::env::var("HOME") {
+        let bin_path = std::path::Path::new(&home).join(".local").join("bin").join("visualloop-server");
+        if bin_path.exists() {
+            let _ = std::process::Command::new(bin_path)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    ensure_core_server();
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![

@@ -262,6 +262,9 @@ importers:
 
   packages/core-server:
     dependencies:
+      '@visualloop/adapter-gemini-cli':
+        specifier: workspace:*
+        version: link:../../adapters/gemini-cli
       '@visualloop/preview-engine':
         specifier: workspace:*
         version: link:../preview-engine

@@ -75,9 +75,9 @@ export const App: React.FC = () => {
       const receipt = await coreClient.submitFeedback(submission);
       console.info("[VisualLoop] Feedback queued by Core Server:", receipt);
 
-      // Transition to waiting and collapse back to mini
-      setState("mini_waiting");
-      setMode("mini");
+      // Stay in expanded mode
+      setState("expanded");
+      // Do not collapse to mini so user can monitor progress and view revisions in editor
     } catch (err: any) {
       console.error("[VisualLoop] Core Server submission failed:", err);
       setState("error");

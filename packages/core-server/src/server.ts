@@ -1,9 +1,18 @@
 import Fastify, { FastifyInstance } from "fastify";
+import fs from "node:fs";
 import path from "node:path";
+import {
+  generateRevisionWithProvider,
+  applyRevisionSafely,
+  providerConfigFromEnv,
+  hasModelCredentials,
+  ProviderConfig,
+} from "@visualloop/adapter-gemini-cli";
 import {
   SessionRegistrationSchema,
   ArtifactPublicationSchema,
   FeedbackSubmissionSchema,
+  FeedbackSubmission,
   ProviderConfigSchema,
   ArtifactKind,
   ServerEvent,
@@ -393,6 +402,11 @@ export class CoreServer {
             timestamp: new Date().toISOString(),
             payload: submission,
           });
+
+          // Trigger automated AI revision runner in background if credentials exist
+          this.processFeedbackWithAI(submission).catch((err) => {
+            console.warn("[CoreServer] Background AI processing failed:", err.message);
+          });
         }
 
         return reply.status(201).send({
@@ -462,6 +476,158 @@ export class CoreServer {
 
   public getAddress(): string {
     return `http://${this.host}:${this.port}`;
+  }
+
+  public async processFeedbackWithAI(submission: FeedbackSubmission): Promise<boolean> {
+    try {
+      const snap = this.store.getSnapshot();
+      const session =
+        this.store.getSession(submission.sessionId) ||
+        snap.sessions.find((s) => s.sessionId === snap.activeSessionId);
+      if (!session) {
+        console.info("[CoreServer] processFeedbackWithAI: session not found");
+        return false;
+      }
+
+      const active = snap.activeArtifact;
+      if (!active || active.artifactId !== submission.artifactId) {
+        console.info("[CoreServer] processFeedbackWithAI: active artifact mismatch", {
+          activeId: active?.artifactId,
+          submissionId: submission.artifactId,
+        });
+        return false;
+      }
+
+      // Only attempt automated source-code revision on SVG and HTML code
+      if (active.kind !== "svg" && active.kind !== "html") {
+        console.info("[CoreServer] processFeedbackWithAI: artifact kind is not svg or html:", active.kind);
+        return false;
+      }
+
+      const targetFilePath = path.resolve(session.workspaceRoot, active.entrypoint);
+      if (!fs.existsSync(targetFilePath)) {
+        console.info("[CoreServer] processFeedbackWithAI: file not found at", targetFilePath);
+        return false;
+      }
+
+      const baseConfig = providerConfigFromEnv();
+      const effectiveProvider = submission.preferredProvider || baseConfig.provider;
+      const effectiveModel = submission.preferredModel || baseConfig.model;
+      const effectiveConfig: ProviderConfig = {
+        ...baseConfig,
+        provider: effectiveProvider,
+        model: effectiveModel,
+      };
+
+      if (!hasModelCredentials(effectiveConfig)) {
+        console.info("[CoreServer] processFeedbackWithAI: no credentials for", effectiveConfig.provider);
+        return false;
+      }
+
+      const currentCode = fs.readFileSync(targetFilePath, "utf-8");
+      const annotationsList = submission.annotations
+        .map((a, i) => `#${i + 1} [${a.type}]: ${a.instruction}`)
+        .join("\n");
+
+      const prompt = [
+        "You are an expert designer and software engineer. Return ONLY the complete updated valid source code.",
+        "CURRENT CODE:",
+        currentCode,
+        "VISUAL FEEDBACK FROM SCREEN ANNOTATIONS:",
+        annotationsList || "User indicated visual changes on rendered output.",
+        submission.generalInstruction ? `General requirement: ${submission.generalInstruction}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const providerResult = await generateRevisionWithProvider(
+        {
+          prompt,
+          screenshotDataUrl: submission.annotatedScreenshotDataUrl,
+        },
+        effectiveConfig
+      );
+
+      const nextRevNumber = (active.revision || 1) + 1;
+      const safeResult = applyRevisionSafely({
+        targetFilePath,
+        revisedCode: providerResult.source,
+        revision: nextRevNumber,
+        workspaceRoot: session.workspaceRoot,
+      });
+
+      if (!safeResult.success) {
+        console.warn("[CoreServer] Safe revision check rejected model output:", safeResult.error);
+        return false;
+      }
+
+      const loaded = await loadArtifact(session.workspaceRoot, active.entrypoint, active.kind);
+      const publication = {
+        sessionId: session.sessionId,
+        artifactId: active.artifactId,
+        revision: nextRevNumber,
+        kind: active.kind,
+        entrypoint: active.entrypoint,
+        title: active.title || path.basename(active.entrypoint),
+        viewport: submission.viewport || {
+          width: 1024,
+          height: 768,
+          devicePixelRatio: 2,
+          zoom: 1,
+          scrollX: 0,
+          scrollY: 0,
+        },
+      };
+
+      const revision = this.store.publishArtifact(publication, loaded.contentHash, loaded.content);
+
+      this.ws.broadcast({
+        type: "artifact.published",
+        timestamp: new Date().toISOString(),
+        payload: publication,
+      });
+
+      this.ws.broadcast({
+        type: "preview.ready",
+        timestamp: new Date().toISOString(),
+        payload: {
+          sessionId: publication.sessionId,
+          artifactId: publication.artifactId,
+          revision: revision.revision,
+          kind: publication.kind,
+          title: publication.title,
+          entrypoint: publication.entrypoint,
+          content: loaded.content,
+        },
+      });
+
+      this.ws.broadcast({
+        type: "revision.published",
+        timestamp: new Date().toISOString(),
+        payload: revision,
+      });
+
+      this.store.acknowledgeFeedback(submission.feedbackId);
+      this.ws.broadcast({
+        type: "feedback.delivered",
+        timestamp: new Date().toISOString(),
+        payload: {
+          feedbackId: submission.feedbackId,
+          sessionId: session.sessionId,
+          status: "acknowledged",
+          deliveredAt: new Date().toISOString(),
+          adapterMessage: `AI revised with ${effectiveConfig.provider}/${effectiveConfig.model}`,
+        },
+      });
+
+      console.info(
+        `[CoreServer] Automatically published revision ${nextRevNumber} for ${active.entrypoint}`
+      );
+      return true;
+    } catch (err: any) {
+      console.warn("[CoreServer] AI revision error:", err.message);
+      return false;
+    }
   }
 
   public getSecretToken(): string | undefined {

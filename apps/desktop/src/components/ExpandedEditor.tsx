@@ -64,13 +64,14 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [generalInstruction, setGeneralInstruction] = useState<string>("");
   const [selectedModelOption, setSelectedModelOption] = useState<string>(() => {
     try {
-      return localStorage.getItem("visualloop_preferred_model") || "gemini:gemini-2.5-flash";
+      return localStorage.getItem("visualloop_preferred_model") || "gemini:gemini-3.8-flash";
     } catch {
-      return "gemini:gemini-2.5-flash";
+      return "gemini:gemini-3.8-flash";
     }
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccessMessage, setSubmitSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -319,6 +320,10 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
     try {
       await onSubmitFeedback(submission);
+      setSubmitSuccessMessage(`Feedback #${submission.feedbackId.slice(-6)} sent! Waiting for AI revision...`);
+      setAnnotations([]);
+      setHistory([]);
+      setGeneralInstruction("");
     } catch (err: any) {
       setSubmitError(err.message || "Failed to submit feedback to local service.");
     } finally {
@@ -675,11 +680,12 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
               className="w-full px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] text-xs text-[#171717] focus:outline-none focus:ring-1 focus:ring-[#171717] cursor-pointer shadow-sm"
             >
               <optgroup label="Google Gemini">
-                <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash (Fast &amp; Smart)</option>
-                <option value="gemini:gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
-                <option value="gemini:gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (High Speed)</option>
-                <option value="gemini:gemini-1.5-flash">Gemini 1.5 Flash (Stable)</option>
-                <option value="gemini:gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash (Smartest &amp; Fast)</option>
+                <option value="gemini:gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                <option value="gemini:gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (High Speed)</option>
+                <option value="gemini:gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (Deep Reasoning)</option>
+                <option value="gemini:gemini-4-argon">Gemini 4 Argon (Next Gen)</option>
+                <option value="gemini:gemini-2.5-pro">Gemini 2.5 Pro</option>
               </optgroup>
               <optgroup label="OpenAI / ChatGPT">
                 <option value="openai:gpt-4o">GPT-4o (Omni Flagship)</option>
@@ -724,6 +730,20 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
           {submitError && (
             <div className="mt-2 p-2 rounded-[6px] bg-[#C2413B]/10 border border-[#C2413B]/20 text-[11px] text-[#C2413B]">
               {submitError}
+            </div>
+          )}
+
+          {/* Success Notification */}
+          {submitSuccessMessage && (
+            <div className="mt-2 p-2 rounded-[6px] bg-[#166534]/10 border border-[#166534]/20 text-[11px] text-[#166534] flex items-center justify-between">
+              <span className="font-medium">{submitSuccessMessage}</span>
+              <button
+                type="button"
+                onClick={() => setSubmitSuccessMessage(null)}
+                className="text-[#166534] hover:text-[#14532D] text-xs font-bold ml-1"
+              >
+                ×
+              </button>
             </div>
           )}
         </div>
