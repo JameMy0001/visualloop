@@ -15,7 +15,7 @@ Review a UI in a floating preview, mark the exact region that needs work, and se
 [![MIT License](https://img.shields.io/badge/License-MIT-171717.svg)](LICENSE)
 [![Developer Preview](https://img.shields.io/badge/Status-Developer%20Preview-737373.svg)](#project-maturity)
 
-[Overview](#overview) · [Demo](#demo) · [AI Agent Skill & Setup](#autonomous-ai-setup--agent-skill-สั่งให้-ai-เซ็ตอัพให้พร้อมใช้ทันที) · [Tech stack](#technology-stack) · [Architecture](#system-architecture) · [Getting started](#getting-started) · [Contributing](#contributing)
+[Overview](#overview) · [Demo](#demo) · [Agent Skill & Setup](#agent-skill-and-setup) · [Tech stack](#technology-stack) · [Architecture](#system-architecture) · [Getting started](#getting-started) · [Contributing](#contributing)
 
 </div>
 
@@ -27,7 +27,7 @@ When an AI coding agent produces a visual interface, reviewing the result often 
 
 **VisualLoop makes visual review a first-class part of the agent workflow.** It provides a compact desktop companion where a reviewer can inspect an SVG or HTML artifact, draw an annotation on the relevant area, add an instruction, and submit feedback tied to the artifact and revision.
 
-VisualLoop is **not another code-generation model**. It is the review, context, and feedback layer between a person and a code-modifying agent. The currently implemented model-powered path uses Google's Gemini API through a separate local runner; it does **not** write messages into an already-running Gemini CLI chat session.
+VisualLoop is **not another code-generation model**. It is a local visual review and feedback layer for AI-generated work. For SVG and HTML files, a configured provider-backed processor or an optional external runner can apply code revisions. Agent Skill scripts can open artifacts for review, but do not automatically inject messages into every existing AI chat session.
 
 ### Who is it for?
 
@@ -37,7 +37,7 @@ VisualLoop is **not another code-generation model**. It is the review, context, 
 
 ### The idea in one example
 
-Instead of saying *“make the sun in the solar-system mockup bigger, but leave the orbit alone”*, mark the sun in the preview and attach the instruction **“Increase this circle by 25%; keep the orbit unchanged.”** VisualLoop associates the annotation with a specific artifact, viewport, and revision so a connected runner can act on that context.
+Instead of vaguely asking an AI to “fix this page,” circle the unreadable hero headline, overlapping cards, and misplaced button, then attach a correction to each region. VisualLoop links these annotations to the exact artifact and revision so the AI workflow knows what to change.
 
 ## Demo
 
@@ -50,17 +50,6 @@ Instead of saying *“make the sun in the solar-system mockup bigger, but leave 
 </div>
 
 This capture begins in the **running VisualLoop web editor**: a flawed SVG draft is published into its actual Preview, three regions are circled using real mouse events, a correction note is entered, and **Send feedback** submits to the real Core Server. A local deterministic test provider returns a revised SVG; VisualLoop applies the source change and displays **Revision 2**. It does **not** show the initial AI generation prompt, a native Tauri window, or a live external-model response. For a fully native AI-run recording, see the [recording checklist](docs/DEMO_RECORDING.md).
-
-### What the experience is designed to look like
-
-1. **Publish:** A local runner registers a session and publishes an SVG or HTML artifact.
-2. **Preview:** The artifact appears in a compact, floating preview; expand it for closer review.
-3. **Annotate:** Mark a region and attach a written change request.
-4. **Submit:** VisualLoop records a structured feedback item with annotation coordinates and revision metadata.
-5. **Revise:** A configured runner consumes the feedback, updates the file, and publishes a subsequent revision.
-6. **Compare and iterate:** Review the updated artifact and repeat if necessary.
-
-The interface supports the human review steps. Automatic revision requires a connected runner and, for the current Gemini integration, a valid API key.
 
 ## Why this approach?
 
@@ -127,7 +116,7 @@ The icons below represent tools **actually referenced by the current source and 
 | **Review interface** | TypeScript, React, HTML/CSS, Tailwind CSS, Vite | Floating preview, annotations, editor interactions |
 | **Local API & events** | Node.js, TypeScript, Fastify, WebSocket (`ws`), Zod | Sessions, artifact revisions, validated requests, feedback transport |
 | **Shared packages** | TypeScript | Protocol types, annotation geometry, preview utilities, agent contracts |
-| **Agent integration** | TypeScript, Google Gemini API (optional) | Read feedback, request a model revision, validate and write the source |
+| **Agent integration** | TypeScript; Gemini, OpenAI, Anthropic and compatible API transports | Use configured providers or a polling runner to revise supported SVG/HTML source |
 | **Build & quality** | pnpm, Vitest, Cargo, GitHub Actions | Monorepo dependencies, automated tests, Rust checks, CI |
 
 > **Integration boundary:** Gemini is an external API used by the optional runner, not a bundled local model. Claude Code and Codex are adapter scaffolds rather than finished integrations.
@@ -136,7 +125,7 @@ The icons below represent tools **actually referenced by the current source and 
 
 ## Extensible AI provider adapters
 
-VisualLoop's review protocol is **not tied to Gemini**. An optional provider transport now allows the runner to select `gemini`, `openai`, `anthropic`, or an `openai-compatible` endpoint through environment variables. The Gemini API route remains the existing default. The other providers have mocked transport tests, but **have not yet been verified end-to-end with live paid APIs or native desktop captures**.
+VisualLoop supports provider configuration through the desktop Settings panel and API transports for `gemini`, `openai`, `anthropic`, and `openai-compatible` endpoints. The built-in Core Server revision path and optional external runner can use configured model services. **Provider support in code is not proof that every service and model has passed a live end-to-end test.**
 
 ```bash
 # Example: use your own OpenAI API credentials
@@ -152,9 +141,7 @@ The `ModelProvider` plugin interface is open for contributors to implement other
 
 VisualLoop is a **local-first TypeScript monorepo with a Tauri 2 desktop shell**. The desktop UI, annotation engine, preview utilities, local API, agent skill, and optional revision processors have distinct responsibilities.
 
-The diagrams below describe two implemented integration paths: an **AI coding agent invoking the VisualLoop Skill** to open an artifact, and the **Core Server's provider-backed revision path** for SVG/HTML. An external polling runner is also available. The skill does not intercept every AI chat automatically: the agent must invoke its scripts. Claude Code and Codex direct-session adapters remain experimental, and not every provider/model combination has been live-tested.
-
-### Component diagram
+The architecture below shows how the VisualLoop Skill, desktop review UI, local Core Server, workspace files, and optional AI revision processors connect. Agents must invoke the skill or its scripts; Claude Code and Codex direct-session adapters are still experimental.
 
 ```mermaid
 flowchart TB
@@ -207,55 +194,6 @@ flowchart TB
 
 **Architecture boundaries:** The agent creates the first artifact and can use `skills/visualloop/scripts/open.sh` to open it. The desktop app handles preview, annotations, and feedback composition; the Core Server owns sessions, feedback transport, revisions, and a built-in model-driven **SVG/HTML** editing path. A separate runner can also consume feedback. Previewable image files are not equivalent to directly AI-editable image source files. Provider configuration is selectable in the app, but direct integration into an existing third-party agent chat is not implied.
 
-### Feedback-to-revision sequence
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Reviewer
-    participant Agent as AI coding agent
-    participant Skill as VisualLoop Skill
-    participant File as Workspace SVG/HTML
-    participant Core as Local Core Server
-    participant UI as Tauri Preview
-    participant AI as Configured AI API
-    participant Runner as Optional external runner
-
-    User->>Agent: Prompt to generate a visual artifact
-    Agent->>File: Write initial SVG or HTML
-    Agent->>Skill: Invoke open.sh with file path
-    Skill->>Core: POST /v1/workspace/select-asset
-    Core->>File: Read and sanitize artifact
-    Core-->>UI: WebSocket preview.ready (revision N)
-    Skill->>UI: Bring VisualLoop to foreground
-    User->>UI: Circle 3 areas and type targeted corrections
-    UI->>Core: POST /v1/feedback with annotations and instructions
-    Core-->>UI: Feedback accepted / queued
-
-    alt Core Server handles revision (SVG/HTML, API configured)
-        Core->>File: Read current source
-        Core->>AI: Send source, marked screenshot and instructions
-        AI-->>Core: Revised SVG/HTML source
-        Core->>File: Validate, back up and write updated source
-        Core->>Core: Publish revision N+1; acknowledge feedback
-        Core-->>UI: preview.ready and revision.published
-        User->>UI: Inspect corrected regions in revision N+1
-    else External runner handles pending feedback
-        Runner->>Core: Poll for pending feedback
-        Core-->>Runner: Return marked feedback
-        Runner->>AI: Generate revised source (if configured)
-        AI-->>Runner: Revised source
-        Runner->>File: Validate, back up and update source
-        Runner->>Core: Publish revision N+1; acknowledge feedback
-        Core-->>UI: Updated preview and revision event
-        User->>UI: Inspect corrected regions in revision N+1
-    else No available revision processor
-        Note over Core,UI: Feedback remains pending; no automatic revision is guaranteed
-    end
-```
-
-This sequence is the **intended success path**, not evidence that every provider or agent integration has been tested live. The built-in automatic source revision currently supports **SVG and HTML**, requires a usable provider configuration, and may fail if the model response or validation fails. To avoid two processors handling one request, configure a single revision owner for a demo or deployment. The README GIF is a scripted UI mock-up until it is explicitly replaced with a verified native recording.
-
 ## Current capabilities
 
 | Area | Implemented today | Important boundary |
@@ -264,46 +202,48 @@ This sequence is the **intended success path**, not evidence that every provider
 | Visual annotations | Markup shapes, instructions, viewport-aware normalized geometry | Coordinate fidelity should be evaluated against real preview content. |
 | Artifacts | Local SVG and HTML artifact loading/preview | Headless capture does not fully reproduce arbitrary browser-rendered content. |
 | Feedback and events | Fastify API, feedback queue, session/revision records, WebSocket updates | Requires the local core service. |
-| Gemini revisions | Optional Gemini API runner reads feedback, edits a local file, and republishes it | Needs `GEMINI_API_KEY`; **not** direct injection into an existing Gemini CLI session. |
+| AI source revisions | Core Server or an optional runner can request provider-backed SVG/HTML revisions, validate the output, and republish a new revision | Needs usable provider configuration; no guarantee that every model request succeeds or that a running agent chat receives feedback directly. |
 | File safeguards | Workspace checks, validation for generated SVG structure, staged replacement, versioned backups | Validation is not a complete XML/HTML security or semantic correctness guarantee. |
 | Other agent adapters | Agent SDK contracts and Claude Code/Codex scaffolding | Automated Claude Code/Codex revision integration is not complete. |
 | Releases | CI and a cross-platform draft-release workflow are configured | No verified publicly distributed installer or stable release yet. |
 
-## Autonomous AI Setup & Agent Skill (สั่งให้ AI เซ็ตอัพให้พร้อมใช้ทันที)
+## Agent Skill and setup
 
-VisualLoop comes bundled with an official **Agent Skill** (`skills/visualloop/`) designed for autonomous integration with modern AI coding assistants (such as Cursor, Google Antigravity, Claude Code, Agy, and Codex).
+VisualLoop includes a repository **Agent Skill** (`skills/visualloop/`) and helper scripts for supported AI coding agents. An agent must be configured to load and invoke the skill; simply cloning the repository does not ensure automatic discovery in every tool.
 
-### 1. Zero-Friction Setup via AI Prompt
-You do not need to read through complex build steps. Simply clone the repository and prompt your AI coding agent:
+### 1. Agent-assisted setup (macOS scripts)
+After cloning the repository, ask a compatible coding agent to help with setup, or run the command yourself:
 
 > *"Set up VisualLoop and make it ready to use"*
 >
 > หรือสั่งเป็นภาษาไทย: *"ช่วยเซ็ตอัพ VisualLoop ให้พร้อมใช้งานที"*
 
-Your AI assistant will detect `skills/visualloop/SKILL.md` and automatically run:
+If your agent can access the repository skill, it can use the setup script:
 ```bash
 bash skills/visualloop/scripts/setup.sh
 ```
 
-**What the setup script automates:**
-- [x] Verifies all development dependencies (Node.js 22, pnpm, Rust, Cargo, Tauri 2).
-- [x] Automatically configures and launches the VisualLoop Core Server daemon on `http://127.0.0.1:4178`.
-- [x] Compiles and installs `/Applications/VisualLoop.app`.
-- [x] Establishes local authentication tokens (`~/.visualloop/auth_token`) and AI provider models.
+**What the current macOS-oriented setup script attempts:**
+- Locate the project and build the Core Server if necessary.
+- Start the local Core Server on `http://127.0.0.1:4178` when it is not already running.
+- Find or build the macOS VisualLoop desktop app, using the system or user Applications folder when possible.
+- Check for an existing local auth token. API credentials and model configuration may require separate setup.
+
+The script requires the relevant development dependencies to be installed and may fail on unsupported systems. For a reproducible source build, use [Getting started](#getting-started).
 
 ### 2. Autonomous Visual Generation & Circling Workflow
 Whenever you instruct an AI assistant to create or modify visual artifacts:
 > *"Design a cloud architecture diagram in SVG"* or *"Generate a sleek telemetry dashboard in HTML"*
 
-The AI agent autonomously follows the VisualLoop Agent Skill protocol:
+When a configured coding agent invokes the VisualLoop Skill, the workflow is:
 1. **Writes the file to disk** (e.g., `dashboard.html` or `diagram.svg`).
 2. **Pops up VisualLoop on your screen** with one command:
    ```bash
    bash skills/visualloop/scripts/open.sh "<path-to-file>"
    ```
-3. VisualLoop immediately renders the artifact in the 1024x768 canvas.
-4. You circle the exact areas requiring adjustment, attach instructions, and click **Send feedback**.
-5. **Live AI Revision**: The sweeping laser scanner and glassmorphic HUD visually track the AI synthesis in real time (via Gemini 3.8 Flash, OpenAI o1/gpt-4o, or Claude 3.7 Sonnet). The source file is updated atomically with versioned backups in `.visualloop_backups/`, and Revision 2 is hot-reloaded live on your canvas.
+3. The selected artifact is loaded into VisualLoop's Preview.
+4. Circle the areas requiring adjustment, add instructions, and select **Send feedback**.
+5. With a valid provider configuration, VisualLoop can request an updated **SVG or HTML** source file, validate and back up the prior version, then display a published revision. The animated progress HUD is a UI indication, **not a live measurement of model processing stages**. External runner workflows are optional and must be configured separately.
 
 ---
 
@@ -316,7 +256,7 @@ The AI agent autonomously follows the VisualLoop Agent Skill protocol:
 - **Node.js 22** and **pnpm 12.3.4** (the version declared by the workspace).
 - **Rust stable / Cargo** and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system when using the native desktop app.
 - Git.
-- **Optional:** a Gemini API key for model-generated file revisions.
+- **Optional:** a supported AI provider API key (or compatible local endpoint) for model-generated source revisions.
 
 ### 1. Clone and build
 
@@ -401,9 +341,9 @@ docs/                       Release-readiness notes and demonstration assets
 - An **artifact** identifies a reviewable SVG or HTML source.
 - A **revision** identifies the specific published version being reviewed.
 - A **feedback item** includes instructions and normalized annotation bounds associated with that session, artifact, and revision.
-- The **core server** queues feedback and broadcasts events; a **runner** polls for pending feedback and acknowledges it after processing.
+- The **core server** records and broadcasts feedback and can process supported SVG/HTML revisions with a configured AI provider; alternatively, an external runner can poll for feedback and publish revisions.
 
-This separation enables different agents to implement their own adapters without embedding model-specific behavior into the desktop UI.
+The desktop UI is independent of any one model provider.
 
 ### Local security and data flow
 
