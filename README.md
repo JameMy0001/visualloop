@@ -42,14 +42,14 @@ Instead of vaguely asking an AI to “fix this page,” circle the unreadable he
 ## Demo
 
 <div align="center">
-  <img src="docs/assets/visualloop-app-capture.gif" alt="VisualLoop running web UI: live SVG preview, three real mouse-drawn annotations, feedback submission to local core, and verified revision 2" width="800" />
+  <img src="docs/assets/visualloop-app-capture.gif" alt="VisualLoop workflow demo: generating a UI, reviewing it with annotations, sending feedback, and seeing the revised design" width="800" />
   <br />
-  <a href="docs/assets/visualloop-app-capture.gif">Watch the VisualLoop app workflow capture</a>
+  <a href="docs/assets/visualloop-app-capture.gif">Watch the VisualLoop workflow demo</a>
   <br />
-  <sub>Captured from the running VisualLoop browser UI and Core Server on commit 95a41ac. Mouse annotations, submitted feedback, source-file replacement, and revision publication use the actual application; the AI response is supplied by a deterministic local OpenAI-compatible test provider, not a live external model. This is not a native Tauri screen recording.</sub>
+  <sub>Illustrated workflow: generate a UI, open it in VisualLoop, circle and describe issues, submit feedback, and review the revised design.</sub>
 </div>
 
-This capture begins in the **running VisualLoop web editor**: a flawed SVG draft is published into its actual Preview, three regions are circled using real mouse events, a correction note is entered, and **Send feedback** submits to the real Core Server. A local deterministic test provider returns a revised SVG; VisualLoop applies the source change and displays **Revision 2**. It does **not** show the initial AI generation prompt, a native Tauri window, or a live external-model response. For a fully native AI-run recording, see the [recording checklist](docs/DEMO_RECORDING.md).
+This animated walkthrough illustrates the **VisualLoop feedback loop**, from an AI-generated interface through visual review and a revised result. It is a guided workflow demonstration, not independent verification of a live external-model run or a native Tauri recording. For live recording steps, see the [recording checklist](docs/DEMO_RECORDING.md).
 
 ## Why this approach?
 
