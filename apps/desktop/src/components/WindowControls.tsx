@@ -76,6 +76,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
             data-tauri-drag-region="false"
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             title={clickThrough ? "Click-through: Active (Press ⌘+Shift+V or ⌘+Shift+C to unlock)" : "Enable Click-through"}
+            aria-label={clickThrough ? "Disable click-through" : "Enable click-through"}
+            aria-pressed={clickThrough}
             onClick={(e) => {
               e.stopPropagation();
               onToggleClickThrough();
@@ -97,11 +99,12 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
             data-tauri-drag-region="false"
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             title="AI Provider Settings"
+            aria-label="AI provider settings"
             onClick={(e) => {
               e.stopPropagation();
               onOpenSettings();
             }}
-            className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+            className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3568B0]"
           >
             <Settings className="w-3.5 h-3.5" />
           </button>
@@ -113,11 +116,12 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
           data-tauri-drag-region="false"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           title={isMini ? "Expand (⌘+Shift+V)" : "Collapse to Mini"}
+          aria-label={isMini ? "Expand editor" : "Collapse to mini preview"}
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand();
           }}
-          className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+          className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#171717] hover:bg-[#F2F2F2] transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3568B0]"
         >
           {isMini ? <ArrowUpRight className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
         </button>
@@ -128,11 +132,12 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
           data-tauri-drag-region="false"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           title="Close Window"
+          aria-label="Close window"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
-          className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#C2413B] hover:bg-[#F2F2F2] transition-colors cursor-pointer"
+          className="p-1.5 rounded-[6px] text-[#737373] hover:text-[#C2413B] hover:bg-[#F2F2F2] transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3568B0]"
         >
           <X className="w-3.5 h-3.5" />
         </button>
