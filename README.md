@@ -9,7 +9,7 @@
 
 **A local-first visual feedback layer for AI-generated interfaces.**
 
-Review a UI in a floating preview, mark the exact region that needs work, and send structured, revision-aware feedback to an AI coding workflow.
+Review a UI in a floating preview, mark the exact region that needs work, confirm the proposed feedback, and send structured, revision-aware instructions to an AI coding workflow.
 
 [![VisualLoop CI](https://github.com/JameMy0001/visualloop/actions/workflows/ci.yml/badge.svg)](https://github.com/JameMy0001/visualloop/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-171717.svg)](LICENSE)
@@ -57,9 +57,15 @@ This animated walkthrough illustrates the **VisualLoop feedback loop**, from an 
 | --- | --- |
 | “The thing near the top-right looks wrong.” | Annotate the exact region on the current preview. |
 | Feedback lives in screenshots and chat messages. | Feedback is represented as structured annotations and instructions. |
-| It is unclear which version a comment applies to. | Feedback references a session, artifact, and revision. |
+| It is unclear which version a comment applies to. | Feedback stays tied to the viewed artifact revision while a review draft is in progress. |
 | Reviewing means switching to a separate browser or image viewer. | A Tauri desktop companion offers mini and expanded views. |
 | Integrations are tightly coupled to one UI. | A local server and adapter contracts separate review from model execution. |
+
+### Revision-safe review and confirmation
+
+When an annotation or instruction is being drafted, incoming preview updates do **not** silently replace the reviewed artifact. VisualLoop shows that a newer revision is ready and offers a **Switch** action. Switching with unsent feedback requires explicitly discarding that draft, so markings cannot be accidentally attributed to a different preview.
+
+**Review feedback** opens a confirmation step that summarizes the artifact and revision, area-specific instructions, general note, and selected AI provider/model. Only **Confirm & send** submits the feedback. This gives the reviewer a chance to go back and make corrections before any submission is sent to the local service. Depending on the configured AI provider, source code and screenshot data may then be transmitted externally.
 
 ## Technology stack
 
@@ -242,7 +248,7 @@ When a configured coding agent invokes the VisualLoop Skill, the workflow is:
    bash skills/visualloop/scripts/open.sh "<path-to-file>"
    ```
 3. The selected artifact is loaded into VisualLoop's Preview.
-4. Circle the areas requiring adjustment, add instructions, and select **Send feedback**.
+4. Circle the areas requiring adjustment, add instructions, select **Review feedback**, verify the revision and instructions, then choose **Confirm & send**.
 5. With a valid provider configuration, VisualLoop can request an updated **SVG or HTML** source file, validate and back up the prior version, then display a published revision. The animated progress HUD is a UI indication, **not a live measurement of model processing stages**. External runner workflows are optional and must be configured separately.
 
 ---
