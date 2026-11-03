@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { SessionHandle, ServerEvent } from "@visualloop/protocol";
 import { coreClient, ActiveArtifactInfo } from "../services/coreClient";
 import { eventClient, ConnectionStatus } from "../services/eventClient";
 import { tauriBridge } from "../services/tauriBridge";
+import { isOlderRevision, isSameReviewSnapshot } from "./revisionGuard";
 
 export type FeedbackUIStatus =
   | "idle"
@@ -31,19 +32,47 @@ export function useVisualLoopStore() {
   const [pendingFeedbackId, setPendingFeedbackId] = useState<string | null>(null);
   const [staleRevisionAvailable, setStaleRevisionAvailable] = useState<number | null>(null);
 
+  // Refs keep websocket and REST handlers synchronized with the latest review snapshot.
+  // In-progress annotations must stay attached to the exact content the reviewer saw.
+  const draftProtectedRef = useRef(false);
+  const activeArtifactRef = useRef<ActiveArtifactInfo | null>(null);
+  const pendingArtifactRef = useRef<ActiveArtifactInfo | null>(null);
+
+  const setReviewDraftActive = useCallback((active: boolean) => {
+    draftProtectedRef.current = active;
+  }, []);
+
+  const receiveArtifact = useCallback((incoming: ActiveArtifactInfo) => {
+    const current = activeArtifactRef.current;
+    if (isOlderRevision(current, incoming) || isOlderRevision(pendingArtifactRef.current, incoming)) {
+      return;
+    }
+    if (current && isSameReviewSnapshot(current, incoming)) return;
+
+    if (draftProtectedRef.current && current) {
+      // Queue the complete content; do not merely advance the revision number.
+      pendingArtifactRef.current = incoming;
+      setStaleRevisionAvailable(incoming.revision);
+      return;
+    }
+
+    activeArtifactRef.current = incoming;
+    setActiveArtifact(incoming);
+    pendingArtifactRef.current = null;
+    setStaleRevisionAvailable(null);
+  }, []);
+
   // Reconcile snapshot from Core Server REST API
   const refreshSnapshot = useCallback(async () => {
     try {
       const snap = await coreClient.getState();
       if (snap.sessions) setSessions(snap.sessions);
       if (snap.activeSessionId) setActiveSessionId(snap.activeSessionId);
-      if (snap.activeArtifact) {
-        setActiveArtifact(snap.activeArtifact);
-      }
+      if (snap.activeArtifact) receiveArtifact(snap.activeArtifact);
     } catch (err) {
       // Server not reachable yet
     }
-  }, []);
+  }, [receiveArtifact]);
 
   // Connect WebSocket and subscribe to real-time events with auto-synchronized auth token
   useEffect(() => {
@@ -75,9 +104,7 @@ export function useVisualLoopStore() {
           const payload = event.payload;
           if (payload.sessions) setSessions(payload.sessions);
           if (payload.activeSessionId) setActiveSessionId(payload.activeSessionId);
-          if (payload.activeArtifact) {
-            setActiveArtifact(payload.activeArtifact);
-          }
+          if (payload.activeArtifact) receiveArtifact(payload.activeArtifact);
           break;
         }
 
@@ -93,20 +120,14 @@ export function useVisualLoopStore() {
 
         case "preview.ready": {
           const p = event.payload;
-          setActiveArtifact((prev) => {
-            // If user is currently editing feedback on an older revision, notify rather than silently wipe
-            if (prev && prev.artifactId === p.artifactId && p.revision > prev.revision) {
-              setStaleRevisionAvailable(p.revision);
-            }
-            return {
-              sessionId: p.sessionId || prev?.sessionId || "active_session",
-              artifactId: p.artifactId,
-              revision: p.revision,
-              kind: p.kind || (p.entrypoint.endsWith(".html") ? "html" : "svg"),
-              title: p.title || p.entrypoint.split("/").pop() || p.artifactId,
-              entrypoint: p.entrypoint,
-              content: p.content,
-            };
+          receiveArtifact({
+            sessionId: p.sessionId || activeArtifactRef.current?.sessionId || "active_session",
+            artifactId: p.artifactId,
+            revision: p.revision,
+            kind: p.kind || (p.entrypoint.endsWith(".html") ? "html" : "svg"),
+            title: p.title || p.entrypoint.split("/").pop() || p.artifactId,
+            entrypoint: p.entrypoint,
+            content: p.content,
           });
           break;
         }
@@ -142,15 +163,12 @@ export function useVisualLoopStore() {
 
         case "revision.published": {
           const rev = event.payload;
-          setActiveArtifact((prev) => {
-            if (prev && prev.artifactId === rev.artifactId) {
-              return {
-                ...prev,
-                revision: rev.revision,
-              };
-            }
-            return prev;
-          });
+          const current = activeArtifactRef.current;
+          if (current && current.artifactId === rev.artifactId && rev.revision > current.revision) {
+            // Never update a revision number without fetching its corresponding content.
+            if (draftProtectedRef.current) setStaleRevisionAvailable(rev.revision);
+            void refreshSnapshot();
+          }
           break;
         }
       }
@@ -160,11 +178,20 @@ export function useVisualLoopStore() {
       unsubStatus();
       unsubEvent();
     };
-  }, [refreshSnapshot]);
+  }, [receiveArtifact, refreshSnapshot]);
 
   const acceptNewRevision = useCallback(() => {
-    setStaleRevisionAvailable(null);
-    refreshSnapshot();
+    const pending = pendingArtifactRef.current;
+    if (pending) {
+      activeArtifactRef.current = pending;
+      setActiveArtifact(pending);
+      pendingArtifactRef.current = null;
+      setStaleRevisionAvailable(null);
+    } else {
+      // The publish event might precede the content. Keep the notice until the
+      // server actually supplies a snapshot with the new revision.
+      void refreshSnapshot();
+    }
   }, [refreshSnapshot]);
 
   return {
@@ -178,5 +205,6 @@ export function useVisualLoopStore() {
     setFeedbackStatus,
     refreshSnapshot,
     acceptNewRevision,
+    setReviewDraftActive,
   };
 }
