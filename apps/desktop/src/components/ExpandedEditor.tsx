@@ -40,6 +40,7 @@ interface ExpandedEditorProps {
   agentName?: string;
   staleRevisionAvailable?: number | null;
   onAcceptNewRevision?: () => void;
+  onReviewDraftChange?: (active: boolean) => void;
   onShrink: () => void;
   onOpenSettings?: () => void;
   onOpenAssetPicker?: () => void;
@@ -65,6 +66,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   agentName = "Gemini CLI",
   staleRevisionAvailable,
   onAcceptNewRevision,
+  onReviewDraftChange,
   onShrink,
   onOpenSettings,
   onOpenAssetPicker,
@@ -87,6 +89,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccessMessage, setSubmitSuccessMessage] = useState<string | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isSwitchConfirmationOpen, setIsSwitchConfirmationOpen] = useState(false);
 
   const [isRevising, setIsRevising] = useState<boolean>(false);
   const [revisionStage, setRevisionStage] = useState<number>(1);
@@ -255,6 +259,22 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
 
+  const hasReviewDraft =
+    isDrawing ||
+    isSubmitting ||
+    isReviewOpen ||
+    isSwitchConfirmationOpen ||
+    annotations.length > 0 ||
+    generalInstruction.trim().length > 0;
+
+  useEffect(() => {
+    onReviewDraftChange?.(hasReviewDraft);
+  }, [hasReviewDraft, onReviewDraftChange]);
+
+  useEffect(() => {
+    return () => onReviewDraftChange?.(false);
+  }, [onReviewDraftChange]);
+
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const getViewportDimensions = () => {
@@ -265,6 +285,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!canvasRef.current) return;
+    onReviewDraftChange?.(true);
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -384,9 +405,38 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
   const canSubmit = annotations.length > 0 || generalInstruction.trim().length > 0;
 
-  const handleSubmit = async () => {
-    if (!canSubmit || isSubmitting) return;
+  const discardDraft = () => {
+    setAnnotations([]);
+    setHistory([]);
+    setGeneralInstruction("");
+    setSubmitError(null);
+    onReviewDraftChange?.(false);
+  };
 
+  const requestRevisionSwitch = () => {
+    if (isSubmitting) return;
+    if (hasReviewDraft) {
+      setIsReviewOpen(false);
+      setIsSwitchConfirmationOpen(true);
+    } else {
+      onReviewDraftChange?.(false);
+      onAcceptNewRevision?.();
+    }
+  };
+
+  const discardAndSwitchRevision = () => {
+    setIsSwitchConfirmationOpen(false);
+    discardDraft();
+    onAcceptNewRevision?.();
+  };
+
+  const handleSubmit = () => {
+    if (canSubmit && !isSubmitting) setIsReviewOpen(true);
+  };
+
+  const submitConfirmedFeedback = async () => {
+    if (!canSubmit || isSubmitting || !isReviewOpen) return;
+    setIsReviewOpen(false);
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -548,7 +598,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                   data-no-drag
                   data-tauri-drag-region="false"
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                  onClick={onAcceptNewRevision}
+                  onClick={requestRevisionSwitch}
+                  disabled={isSubmitting}
                   className="ml-1 underline hover:text-[#171717] cursor-pointer"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
@@ -1076,7 +1127,10 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
             <textarea
               rows={3}
               value={generalInstruction}
-              onChange={(e) => setGeneralInstruction(e.target.value)}
+              onChange={(e) => {
+                setGeneralInstruction(e.target.value);
+                if (e.target.value.trim()) onReviewDraftChange?.(true);
+              }}
               placeholder="E.g., Keep font sizes readable on mobile..."
               className="w-full p-2 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] text-xs text-[#171717] placeholder:text-[#A3A3A3] focus:outline-none focus:ring-1 focus:ring-[#171717] resize-none"
             />
@@ -1109,8 +1163,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       <div className="h-[44px] px-4 flex items-center justify-between border-t border-[#E5E5E5] bg-[#FFFFFF]">
         <button
           type="button"
-          onClick={handleClear}
-          disabled={annotations.length === 0 && !generalInstruction}
+          onClick={discardDraft}
+          disabled={!canSubmit}
           className="text-xs text-[#737373] hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
         >
           Discard draft
@@ -1135,7 +1189,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
             ) : (
               <>
                 <Send className="w-3.5 h-3.5" />
-                <span>Send feedback</span>
+                <span>Review feedback</span>
               </>
             )}
           </button>
