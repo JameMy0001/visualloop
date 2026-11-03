@@ -40,6 +40,7 @@ interface ExpandedEditorProps {
   agentName?: string;
   staleRevisionAvailable?: number | null;
   onAcceptNewRevision?: () => void;
+  onReviewDraftChange?: (active: boolean) => void;
   onShrink: () => void;
   onOpenSettings?: () => void;
   onOpenAssetPicker?: () => void;
@@ -65,6 +66,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   agentName = "Gemini CLI",
   staleRevisionAvailable,
   onAcceptNewRevision,
+  onReviewDraftChange,
   onShrink,
   onOpenSettings,
   onOpenAssetPicker,
@@ -87,6 +89,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccessMessage, setSubmitSuccessMessage] = useState<string | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isSwitchConfirmationOpen, setIsSwitchConfirmationOpen] = useState(false);
 
   const [isRevising, setIsRevising] = useState<boolean>(false);
   const [revisionStage, setRevisionStage] = useState<number>(1);
@@ -255,6 +259,22 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
 
+  const hasReviewDraft =
+    isDrawing ||
+    isSubmitting ||
+    isReviewOpen ||
+    isSwitchConfirmationOpen ||
+    annotations.length > 0 ||
+    generalInstruction.trim().length > 0;
+
+  useEffect(() => {
+    onReviewDraftChange?.(hasReviewDraft);
+  }, [hasReviewDraft, onReviewDraftChange]);
+
+  useEffect(() => {
+    return () => onReviewDraftChange?.(false);
+  }, [onReviewDraftChange]);
+
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const getViewportDimensions = () => {
@@ -265,6 +285,7 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!canvasRef.current) return;
+    onReviewDraftChange?.(true);
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -384,9 +405,38 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
 
   const canSubmit = annotations.length > 0 || generalInstruction.trim().length > 0;
 
-  const handleSubmit = async () => {
-    if (!canSubmit || isSubmitting) return;
+  const discardDraft = () => {
+    setAnnotations([]);
+    setHistory([]);
+    setGeneralInstruction("");
+    setSubmitError(null);
+    onReviewDraftChange?.(false);
+  };
 
+  const requestRevisionSwitch = () => {
+    if (isSubmitting) return;
+    if (hasReviewDraft) {
+      setIsReviewOpen(false);
+      setIsSwitchConfirmationOpen(true);
+    } else {
+      onReviewDraftChange?.(false);
+      onAcceptNewRevision?.();
+    }
+  };
+
+  const discardAndSwitchRevision = () => {
+    setIsSwitchConfirmationOpen(false);
+    discardDraft();
+    onAcceptNewRevision?.();
+  };
+
+  const handleSubmit = () => {
+    if (canSubmit && !isSubmitting) setIsReviewOpen(true);
+  };
+
+  const submitConfirmedFeedback = async () => {
+    if (!canSubmit || isSubmitting || !isReviewOpen) return;
+    setIsReviewOpen(false);
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -548,7 +598,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
                   data-no-drag
                   data-tauri-drag-region="false"
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                  onClick={onAcceptNewRevision}
+                  onClick={requestRevisionSwitch}
+                  disabled={isSubmitting}
                   className="ml-1 underline hover:text-[#171717] cursor-pointer"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
@@ -1076,7 +1127,10 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
             <textarea
               rows={3}
               value={generalInstruction}
-              onChange={(e) => setGeneralInstruction(e.target.value)}
+              onChange={(e) => {
+                setGeneralInstruction(e.target.value);
+                if (e.target.value.trim()) onReviewDraftChange?.(true);
+              }}
               placeholder="E.g., Keep font sizes readable on mobile..."
               className="w-full p-2 bg-[#FFFFFF] border border-[#E5E5E5] rounded-[8px] text-xs text-[#171717] placeholder:text-[#A3A3A3] focus:outline-none focus:ring-1 focus:ring-[#171717] resize-none"
             />
@@ -1109,8 +1163,8 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
       <div className="h-[44px] px-4 flex items-center justify-between border-t border-[#E5E5E5] bg-[#FFFFFF]">
         <button
           type="button"
-          onClick={handleClear}
-          disabled={annotations.length === 0 && !generalInstruction}
+          onClick={discardDraft}
+          disabled={!canSubmit}
           className="text-xs text-[#737373] hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
         >
           Discard draft
@@ -1135,12 +1189,146 @@ export const ExpandedEditor: React.FC<ExpandedEditorProps> = ({
             ) : (
               <>
                 <Send className="w-3.5 h-3.5" />
-                <span>Send feedback</span>
+                <span>Review feedback</span>
               </>
             )}
           </button>
         </div>
       </div>
+      {/* Confirm what will be transmitted before generating captures or calling the server. */}
+      {isReviewOpen && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              setIsReviewOpen(false);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-review-title"
+            className="flex max-h-full w-full max-w-[540px] flex-col rounded-xl border border-[#E5E5E5] bg-white shadow-2xl"
+          >
+            <div className="border-b border-[#E5E5E5] px-5 py-4">
+              <h2 id="feedback-review-title" className="text-sm font-semibold">
+                Review feedback before sending
+              </h2>
+              <p className="mt-1 text-xs text-[#737373]">
+                Confirm the annotations and instructions for this exact revision.
+              </p>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 text-xs">
+              <div className="rounded-lg bg-[#F5F5F5] p-3">
+                <p className="font-semibold text-[#171717]">
+                  {artifact?.title || artifact?.artifactId || "Current artifact"} · Revision {artifact?.revision ?? 1}
+                </p>
+                <p className="mt-1 break-all text-[#737373]">
+                  {artifact?.entrypoint || "No preview file selected"}
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold">{annotations.length} annotated area{annotations.length === 1 ? "" : "s"}</p>
+                {annotations.length > 0 ? (
+                  <ol className="mt-2 max-h-36 space-y-2 overflow-y-auto">
+                    {annotations.map((ann, index) => (
+                      <li key={ann.id} className="rounded-md border border-[#E5E5E5] p-2">
+                        <span className="font-semibold">{index + 1}. {ann.type}</span>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-[#525252]">
+                          {ann.instruction || "No area-specific instruction"}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="mt-1 text-[#737373]">No area annotations.</p>
+                )}
+              </div>
+              {generalInstruction.trim() && (
+                <div>
+                  <p className="font-semibold">General instruction</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-[#525252]">
+                    {generalInstruction.trim()}
+                  </p>
+                </div>
+              )}
+              <p className="text-[#525252]">
+                AI provider / model: <span className="font-medium text-[#171717]">{selectedModelOption.replace(":", " / ")}</span>
+              </p>
+              <p className="rounded-lg border border-[#E5E5E5] p-3 text-[#525252]">
+                Sending this feedback may transfer the selected artifact source, instructions,
+                and captured preview images to your configured AI provider.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#E5E5E5] px-5 py-3">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsReviewOpen(false)}
+                className="rounded-lg border border-[#D4D4D4] px-3 py-2 text-xs font-medium hover:bg-[#F5F5F5]"
+              >
+                Back to editing
+              </button>
+              <button
+                type="button"
+                onClick={submitConfirmedFeedback}
+                disabled={isSubmitting}
+                className="rounded-lg bg-[#171717] px-3 py-2 text-xs font-semibold text-white hover:bg-[#303030] disabled:opacity-50"
+              >
+                Confirm &amp; send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSwitchConfirmationOpen && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              setIsSwitchConfirmationOpen(false);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="revision-switch-title"
+            className="w-full max-w-[440px] rounded-xl border border-[#E5E5E5] bg-white p-5 shadow-2xl"
+          >
+            <h2 id="revision-switch-title" className="text-sm font-semibold">
+              Switch to revision {staleRevisionAvailable}?
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-[#525252]">
+              Your annotations and unsent instructions refer to revision {artifact?.revision ?? 1}.
+              Switching would discard that draft so it cannot accidentally be sent with the new revision.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsSwitchConfirmationOpen(false)}
+                className="rounded-lg border border-[#D4D4D4] px-3 py-2 text-xs font-medium hover:bg-[#F5F5F5]"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={discardAndSwitchRevision}
+                className="rounded-lg bg-[#171717] px-3 py-2 text-xs font-semibold text-white hover:bg-[#303030]"
+              >
+                Discard draft &amp; switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

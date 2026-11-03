@@ -29,6 +29,7 @@ export const App: React.FC = () => {
     feedbackStatus,
     staleRevisionAvailable,
     acceptNewRevision,
+    setReviewDraftActive,
   } = useVisualLoopStore();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -110,6 +111,7 @@ export const App: React.FC = () => {
           agentName={agentName}
           staleRevisionAvailable={staleRevisionAvailable}
           onAcceptNewRevision={acceptNewRevision}
+          onReviewDraftChange={setReviewDraftActive}
           onShrink={() => setMode("mini")}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenAssetPicker={() => setIsAssetPickerOpen(true)}
