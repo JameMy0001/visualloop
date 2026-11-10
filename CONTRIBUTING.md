@@ -12,10 +12,16 @@ Thank you for your interest in contributing to VisualLoop. VisualLoop is an open
 
 ### Setup
 ```bash
-git clone https://github.com/visualloop/visualloop.git
+git clone https://github.com/JameMy0001/visualloop.git
 cd visualloop
 pnpm install
 ```
+
+### Environment Configuration
+When running the agent runner or configuring local providers, note the environment precedence:
+- `VISUALLOOP_AI_PROVIDER`: Active model provider (`gemini`, `openai`, `anthropic`, `openai-compatible`). Shell environment variables take precedence over saved local provider configuration.
+- `VISUALLOOP_AI_MODEL`: Model identifier override for the selected provider.
+- `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`: Credentials for external provider APIs.
 
 ### Running the Desktop App
 ```bash
