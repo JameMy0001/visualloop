@@ -356,7 +356,7 @@ The desktop UI is independent of any one model provider.
 - The core server binds to loopback by default and requires a local token by default for protected API/WebSocket access. Tokens are stored in `~/.visualloop/auth_token`; do not share or commit them.
 - The origin-checking and preview-sanitization layers reduce exposure to untrusted artifacts. HTML is previewed in a sandboxed iframe; this is a security boundary to test, not a guarantee that arbitrary untrusted content is harmless.
 - The Gemini runner includes workspace path checks, SVG structure checks, backups, and staged file replacement. Keep your own version control as an additional recovery mechanism.
-- Local preview and feedback transport run on your machine. **When Gemini is enabled, source code, feedback, and optionally an annotated image may leave your machine** through the API request.
+- Local preview and feedback transport run on your machine. **When an external AI provider is enabled, source code, feedback, and optionally an annotated image may leave your machine** through the API request.
 
 See [SECURITY.md](SECURITY.md) for the security model and vulnerability reporting instructions.
 
