@@ -42,3 +42,6 @@ pnpm typecheck
 - Follow Conventional Commits format (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`).
 - Eliminate decorative emojis in commits, code, and technical documentation.
 - Ensure all automated unit and integration tests pass before submitting.
+
+## Contributors
+- Winwin001: Model provider documentation and AI data flow clarification.
