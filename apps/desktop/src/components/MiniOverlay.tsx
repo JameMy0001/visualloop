@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { WindowState } from "@visualloop/protocol";
 import { WindowControls } from "./WindowControls";
@@ -30,8 +30,6 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
   onOpenAssetPicker,
   onClose,
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
   const statusText = artifact
     ? `Ready · r${artifact.revision}`
     : state === "mini_waiting"
@@ -41,8 +39,6 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
   return (
     <div
       style={{ opacity }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       className="relative w-full h-full flex flex-col rounded-[14px] overflow-hidden bg-[#FFFFFF] border border-[#E5E5E5] shadow-[0_8px_24px_rgba(0,0,0,0.12)] select-none transition-opacity duration-150"
     >
       {/* 34px Minimal Header Toolbar */}
@@ -74,17 +70,18 @@ export const MiniOverlay: React.FC<MiniOverlayProps> = ({
           </div>
         )}
 
-        {/* Hover Expand Shortcut Pill */}
-        {artifact && isHovered && !clickThrough && (
-          <div className="absolute inset-0 bg-[#FFFFFF]/40 backdrop-blur-[1px] flex items-center justify-center transition-opacity duration-150 pointer-events-auto">
-            <button
-              onClick={onExpand}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[#171717] hover:bg-[#303030] text-[#FFFFFF] text-xs font-medium shadow-md transition-all active:scale-95 cursor-pointer"
-            >
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>Expand & Annotate</span>
-            </button>
-          </div>
+        {/* Keep the preview unobstructed while making the primary action discoverable. */}
+        {artifact && !clickThrough && (
+          <button
+            type="button"
+            onClick={onExpand}
+            aria-label="Open annotation editor for current artifact"
+            title="Open annotation editor"
+            className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-[8px] bg-[#171717]/95 px-3 py-2 text-xs font-medium text-white shadow-[0_3px_12px_rgba(0,0,0,0.22)] transition-colors hover:bg-[#303030] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3568B0] active:bg-black cursor-pointer"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Annotate</span>
+          </button>
         )}
       </div>
 
